@@ -27,6 +27,16 @@ export class RecommendationsController {
     };
   }
 
+  @Get('services')
+  @ApiOperation({ summary: 'Get all active Educaro services catalog' })
+  async getServices() {
+    const services = await this.recService.getEducaroServices();
+    return {
+      success: true,
+      services,
+    };
+  }
+
   @Post('refresh')
   @ApiOperation({ summary: 'Recalculate Educaro next-step recommendation based on fresh applicant state' })
   async refresh(@CurrentUser('id') applicantId: string) {

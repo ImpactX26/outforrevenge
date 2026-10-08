@@ -1,0 +1,626 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  APPLICANT
+  CONSULTANT
+  ADMIN
+}
+
+enum GoalType {
+  STUDY
+  AUSBILDUNG
+  EMPLOYMENT
+}
+
+enum DocumentType {
+  CV
+  DEGREE
+  TRANSCRIPT
+  CERTIFICATE
+  EXPERIENCE_LETTER
+  LANGUAGE_CERTIFICATE
+  PROFESSIONAL_CERTIFICATE
+  OTHER
+}
+
+enum DocumentStatus {
+  UPLOADING
+  UPLOADED
+  PROCESSING
+  EXTRACTING
+  CHECKING
+  COMPLETED
+  FAILED
+  REQUIRES_REVIEW
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum SourceType {
+  APPLICANT_PROVIDED
+  DOCUMENT_EXTRACTED
+  VIDEO_EXTRACTED
+  AI_GENERATED
+  CONSULTANT_VERIFIED
+}
+
+enum QualificationStatus {
+  QUALIFIED
+  PARTIALLY_QUALIFIED
+  MORE_INFORMATION_REQUIRED
+  NOT_CURRENTLY_QUALIFIED
+}
+
+enum OpportunityType {
+  STUDY
+  AUSBILDUNG
+  EMPLOYMENT
+}
+
+enum RecommendationType {
+  EDUCARO_SERVICE
+  CONSULTANT_REFERRAL
+  APPLICANT_ACTION
+}
+
+enum RecommendationStatus {
+  ACTIVE
+  ACCEPTED
+  DISMISSED
+  SUPERSEDED
+}
+
+enum JourneyStepStatus {
+  LOCKED
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REQUIRES_REVIEW
+}
+
+enum AgentExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  REQUIRES_REVIEW
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CLARIFICATION_REQUESTED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         UserRole  @default(APPLICANT)
+  phone        String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  profile             ApplicantProfile?
+  refreshTokens       RefreshToken[]
+  documents           Document[]
+  videos              Video[]
+  assessments         QualificationAssessment[]
+  opportunityMatches  OpportunityMatch[]
+  recommendations     NextStepRecommendation[]
+  journey             Journey?
+  cvs                 CV[]
+  coverLetters        CoverLetter[]
+  interviewSessions   InterviewSession[]
+  notifications       Notification[]
+  agentExecutions     AgentExecution[]
+  applicantReviews    ConsultantReview[] @relation("ApplicantReviews")
+  assignedReviews     ConsultantReview[] @relation("ConsultantReviews")
+  auditLogs           AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model ApplicantProfile {
+  id                  String     @id @default(uuid())
+  userId              String     @unique
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentGoal         GoalType?
+  phone               String?
+  location            String?
+  availability        String?
+  bio                 String?    @db.Text
+  profileCompleteness Int        @default(0)
+  readinessScore      Int        @default(0)
+  rawMotivation       String?    @db.Text
+  preferredPathways   String[]
+  metadata            Json?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  educations          Education[]
+  employments         Employment[]
+  skills              Skill[]
+  languages           Language[]
+
+  @@map("applicant_profiles")
+}
+
+model Education {
+  id                 String             @id @default(uuid())
+  profileId          String
+  profile            ApplicantProfile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  institution        String
+  degree             String
+  fieldOfStudy       String
+  graduationDate     String?
+  gradeOrCgpa        String?
+  division           String?
+  marksDetails       String?            @db.Text
+  sourceType         SourceType         @default(APPLICANT_PROVIDED)
+  sourceId           String?
+  confidence         Float              @default(1.0)
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@map("educations")
+}
+
+model Employment {
+  id                 String             @id @default(uuid())
+  profileId          String
+  profile            ApplicantProfile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  companyName        String
+  role               String
+  responsibilities   String?            @db.Text
+  startDate          String?
+  endDate            String?
+  isCurrent          Boolean            @default(false)
+  location           String?
+  sourceType         SourceType         @default(APPLICANT_PROVIDED)
+  sourceId           String?
+  confidence         Float              @default(1.0)
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@map("employments")
+}
+
+model Skill {
+  id                 String             @id @default(uuid())
+  profileId          String
+  profile            ApplicantProfile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name               String
+  category           String?
+  proficiencyLevel   String?
+  sourceType         SourceType         @default(APPLICANT_PROVIDED)
+  sourceId           String?
+  confidence         Float              @default(1.0)
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@map("skills")
+}
+
+model Language {
+  id                 String             @id @default(uuid())
+  profileId          String
+  profile            ApplicantProfile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  language           String
+  proficiencyLevel   String
+  certificateType    String?
+  certificateNumber  String?
+  sourceType         SourceType         @default(APPLICANT_PROVIDED)
+  sourceId           String?
+  confidence         Float              @default(1.0)
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@map("languages")
+}
+
+model Document {
+  id              String              @id @default(uuid())
+  applicantId     String
+  applicant       User                @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  documentType    DocumentType
+  filename        String
+  storageKey      String
+  fileSize        BigInt
+  mimeType        String
+  status          DocumentStatus      @default(UPLOADED)
+  processingError String?             @db.Text
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  extraction      DocumentExtraction?
+
+  @@map("documents")
+}
+
+model DocumentExtraction {
+  id            String    @id @default(uuid())
+  documentId    String    @unique
+  document      Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  rawText       String?   @db.Text
+  extractedJson Json
+  confidence    Float     @default(0.9)
+  warnings      Json?
+  provenance    Json?
+  createdAt     DateTime  @default(now())
+
+  @@map("document_extractions")
+}
+
+model Video {
+  id              String         @id @default(uuid())
+  applicantId     String
+  applicant       User           @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  storageKey      String
+  filename        String
+  durationSeconds Int?
+  fileSize        BigInt
+  mimeType        String
+  status          DocumentStatus @default(UPLOADED)
+  transcript      String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  analysis        VideoAnalysis?
+
+  @@map("videos")
+}
+
+model VideoAnalysis {
+  id                 String   @id @default(uuid())
+  videoId            String   @unique
+  video              Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  backgroundSummary  String?  @db.Text
+  educationSummary   String?  @db.Text
+  experienceSummary  String?  @db.Text
+  motivationSummary  String?  @db.Text
+  careerGoals        String?  @db.Text
+  germanyMotivation  String?  @db.Text
+  relevantSkills     String[]
+  proposedUpdates    Json?
+  confidence         Float    @default(0.9)
+  applicantApproved  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  @@map("video_analyses")
+}
+
+model QualificationRequirement {
+  id           String    @id @default(uuid())
+  pathway      GoalType
+  category     String
+  title        String
+  description  String    @db.Text
+  ruleCode     String
+  minimumLevel String?
+  required     Boolean   @default(true)
+  weight       Int       @default(10)
+  isDemoData   Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("qualification_requirements")
+}
+
+model QualificationAssessment {
+  id                    String              @id @default(uuid())
+  applicantId           String
+  applicant             User                @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  status                QualificationStatus
+  score                 Int
+  satisfiedRequirements Json
+  missingRequirements   Json
+  warnings              Json?
+  evidence              Json?
+  aiExplanation         String?             @db.Text
+  evaluatedAt           DateTime            @default(now())
+  createdAt             DateTime            @default(now())
+
+  @@map("qualification_assessments")
+}
+
+model Opportunity {
+  id           String             @id @default(uuid())
+  title        String
+  type         OpportunityType
+  organization String
+  location     String
+  description  String             @db.Text
+  requirements Json
+  tags         String[]
+  deadline     String?
+  externalUrl  String?
+  isDemoData   Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  matches      OpportunityMatch[]
+  coverLetters CoverLetter[]
+
+  @@map("opportunities")
+}
+
+model OpportunityMatch {
+  id                  String      @id @default(uuid())
+  applicantId         String
+  applicant           User        @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  opportunityId       String
+  opportunity         Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  matchPercentage     Int
+  matchedRequirements Json
+  missingRequirements Json
+  reason              String      @db.Text
+  nextAction          String?
+  createdAt           DateTime    @default(now())
+
+  @@map("opportunity_matches")
+}
+
+model EducaroService {
+  id            String        @id @default(uuid())
+  title         String
+  category      String
+  description   String        @db.Text
+  entryCriteria Json
+  benefits      String[]
+  fee           String?
+  duration      String?
+  isDemoData    Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  routingRules  RoutingRule[]
+
+  @@map("educaro_services")
+}
+
+model RoutingRule {
+  id                  String             @id @default(uuid())
+  name                String
+  conditionType       String
+  conditionExpression Json
+  targetType          RecommendationType
+  targetServiceId     String?
+  targetService       EducaroService?    @relation(fields: [targetServiceId], references: [id], onDelete: SetNull)
+  priority            Int                @default(10)
+  reasonTemplate      String             @db.Text
+  isDemoData          Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@map("routing_rules")
+}
+
+model NextStepRecommendation {
+  id                 String               @id @default(uuid())
+  applicantId        String
+  applicant          User                 @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  type               RecommendationType
+  targetId           String?
+  title              String
+  reason             String               @db.Text
+  supportingEvidence Json?
+  confidence         Float                @default(0.95)
+  status             RecommendationStatus @default(ACTIVE)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@map("next_step_recommendations")
+}
+
+model Journey {
+  id                 String        @id @default(uuid())
+  applicantId        String        @unique
+  applicant          User          @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  currentState       String        @default("ONBOARDING")
+  progressPercentage Int           @default(0)
+  lastEvaluatedAt    DateTime      @default(now())
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  steps              JourneyStep[]
+
+  @@map("journeys")
+}
+
+model JourneyStep {
+  id            String            @id @default(uuid())
+  journeyId     String
+  journey       Journey           @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  stepOrder     Int
+  code          String
+  title         String
+  description   String            @db.Text
+  status        JourneyStepStatus @default(PENDING)
+  actionUrl     String?
+  actionPayload Json?
+  completedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@map("journey_steps")
+}
+
+model CV {
+  id                   String   @id @default(uuid())
+  applicantId          String
+  applicant            User     @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  title                String   @default("My German CV")
+  templateName         String   @default("Germany_EU_Clean")
+  version              Int      @default(1)
+  summary              String?  @db.Text
+  isSummaryAiGenerated Boolean  @default(false)
+  personalInfo         Json
+  educationData        Json
+  employmentData       Json
+  skillsData           Json
+  languagesData        Json
+  customSections       Json?
+  storageKey           String?
+  pdfUrl               String?
+  isPublished          Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("cvs")
+}
+
+model CoverLetter {
+  id            String       @id @default(uuid())
+  applicantId   String
+  applicant     User         @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  title         String
+  content       String       @db.Text
+  version       Int          @default(1)
+  isAiGenerated Boolean      @default(true)
+  storageKey    String?
+  pdfUrl        String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("cover_letters")
+}
+
+model InterviewSession {
+  id           String    @id @default(uuid())
+  applicantId  String
+  applicant    User      @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  pathway      GoalType
+  targetRole   String
+  questions    Json
+  answers      Json      @default("[]")
+  feedback     Json?
+  overallScore Int?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@map("interview_sessions")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String   @db.Text
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model AgentExecution {
+  id                String               @id @default(uuid())
+  agentType         String
+  applicantId       String?
+  applicant         User?                @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  status            AgentExecutionStatus @default(PENDING)
+  inputReference    String?
+  output            Json?
+  confidence        Float?
+  startedAt         DateTime             @default(now())
+  completedAt       DateTime?
+  error             String?              @db.Text
+  parentExecutionId String?
+  parentExecution   AgentExecution?      @relation("AgentExecutionHierarchy", fields: [parentExecutionId], references: [id], onDelete: Cascade)
+  childExecutions   AgentExecution[]     @relation("AgentExecutionHierarchy")
+  triggeredBy       String               @default("SYSTEM_EVENT")
+  createdAt         DateTime             @default(now())
+
+  @@map("agent_executions")
+}
+
+model ConsultantReview {
+  id                String       @id @default(uuid())
+  applicantId       String
+  applicant         User         @relation("ApplicantReviews", fields: [applicantId], references: [id], onDelete: Cascade)
+  consultantId      String?
+  consultant        User?        @relation("ConsultantReviews", fields: [consultantId], references: [id], onDelete: SetNull)
+  issue             String
+  reason            String       @db.Text
+  evidence          Json?
+  agentType         String?
+  confidence        Float?
+  recommendedAction String?
+  status            ReviewStatus @default(PENDING)
+  consultantNotes   String?      @db.Text
+  resolution        String?      @db.Text
+  resolvedAt        DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@map("consultant_reviews")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String?
+  entityId   String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model FileAsset {
+  id           String   @id @default(uuid())
+  publicId     String   @unique
+  resourceType String
+  format       String
+  filename     String
+  size         BigInt
+  reference    String
+  status       String   @default("uploaded")
+  secureUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("file_assets")
+}

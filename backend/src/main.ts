@@ -13,17 +13,33 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 process.on('uncaughtException', (err: any) => {
-  const msg = err?.message || '';
+  const msg = err?.message || String(err || '');
   if (
     err?.code === 'ECONNRESET' ||
     msg.includes('ECONNRESET') ||
     msg.includes('Connection terminated unexpectedly') ||
-    msg.includes('socket hang up')
+    msg.includes('socket hang up') ||
+    msg.includes('Closed') ||
+    msg.includes('kind: Closed')
   ) {
     // Neon cloud connection pooler drops idle sockets; pg connection pool auto-reconnects on next query
     return;
   }
   console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  const msg = reason?.message || String(reason || '');
+  if (
+    msg.includes('ECONNRESET') ||
+    msg.includes('Connection terminated unexpectedly') ||
+    msg.includes('socket hang up') ||
+    msg.includes('Closed') ||
+    msg.includes('kind: Closed')
+  ) {
+    return;
+  }
+  console.error('Unhandled Rejection:', reason);
 });
 
 async function bootstrap() {

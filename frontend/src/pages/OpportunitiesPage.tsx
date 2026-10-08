@@ -11,7 +11,11 @@ import {
   Search,
   Filter,
   ExternalLink,
-  Tag,
+  GraduationCap,
+  Award,
+  Layers,
+  ChevronRight,
+  Check,
 } from 'lucide-react';
 import { OpportunityItem, OpportunityMatch, OpportunityType } from '../types';
 
@@ -73,41 +77,75 @@ export const OpportunitiesPage: React.FC = () => {
   });
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Header Banner */}
+    <div style={{ maxWidth: '1160px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      {/* 1. Header Banner */}
       <div
         className="card"
         style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98))',
+          border: '1px solid rgba(59, 130, 246, 0.25)',
+          padding: '1.5rem 1.75rem',
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '1rem',
+          gap: '1.25rem',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
         }}
       >
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.4rem' }}>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '12px',
+                background: 'rgba(236, 72, 153, 0.15)',
+                border: '1px solid rgba(236, 72, 153, 0.3)',
+                color: '#f472b6',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
+              GERMAN OPPORTUNITY NETWORK
+            </span>
+            <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+              Universities • Vocational Dual Training • Skilled Employment
+            </span>
+          </div>
+          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#fff', margin: '0 0 0.35rem 0', letterSpacing: '-0.02em' }}>
             Matched German Opportunities
           </h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.3rem' }}>
-            Curated universities, dual Ausbildung training partners, and employer positions in Germany scored deterministically against your verified dossier credentials.
+          <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0, maxWidth: '720px', lineHeight: 1.55 }}>
+            Curated universities, dual Ausbildung training institutions, and employers in Germany scored deterministically against your verified qualification dossier.
           </p>
         </div>
+
         <button
           onClick={handleRefreshMatches}
           disabled={refreshing}
           className="btn btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.6rem 1.2rem' }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.7rem 1.4rem',
+            fontSize: '0.88rem',
+            boxShadow: '0 4px 15px rgba(37, 99, 235, 0.3)',
+          }}
         >
-          {refreshing ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />}
-          <span>Re-Compute Matches</span>
+          <RefreshCw className={refreshing ? 'animate-spin' : ''} size={16} />
+          <span>{refreshing ? 'Recalculating Matches...' : 'Re-Calculate Matches'}</span>
         </button>
       </div>
 
-      {/* Filter and Search Bar */}
+      {/* 2. Filter & Search Control Bar */}
       <div
+        className="card"
         style={{
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          padding: '1.1rem 1.35rem',
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'space-between',
@@ -122,178 +160,158 @@ export const OpportunitiesPage: React.FC = () => {
               key={t}
               onClick={() => setActiveFilter(t)}
               style={{
-                padding: '0.45rem 0.9rem',
-                borderRadius: '6px',
+                padding: '0.45rem 1rem',
+                borderRadius: '8px',
                 border: '1px solid',
-                borderColor: activeFilter === t ? '#3b82f6' : 'var(--border-subtle)',
-                background: activeFilter === t ? 'rgba(37, 99, 235, 0.2)' : 'rgba(15, 23, 42, 0.6)',
+                borderColor: activeFilter === t ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)',
+                background: activeFilter === t ? 'rgba(37, 99, 235, 0.25)' : 'rgba(30, 41, 59, 0.5)',
                 color: activeFilter === t ? '#60a5fa' : '#94a3b8',
                 fontWeight: activeFilter === t ? 700 : 500,
-                fontSize: '0.8rem',
+                fontSize: '0.82rem',
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
               }}
             >
-              {t === 'ALL' ? 'All Pathways' : t === 'STUDY' ? 'University Study' : t === 'AUSBILDUNG' ? 'Ausbildung' : 'Direct Jobs'}
+              {t === 'ALL'
+                ? 'All Pathways'
+                : t === 'STUDY'
+                ? 'University Study'
+                : t === 'AUSBILDUNG'
+                ? 'Dual Ausbildung'
+                : 'Direct Employment'}
             </button>
           ))}
         </div>
 
         {/* Search Input */}
-        <div style={{ position: 'relative', minWidth: '240px' }}>
+        <div style={{ position: 'relative', minWidth: '260px' }}>
           <Search size={15} color="#64748b" style={{ position: 'absolute', left: '10px', top: '10px' }} />
           <input
             type="text"
-            placeholder="Search company, degree, city..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by city, university, role..."
             style={{
-              width: '100%',
-              padding: '0.5rem 0.75rem 0.5rem 2.2rem',
+              padding: '0.45rem 0.85rem 0.45rem 2rem',
               borderRadius: '8px',
-              background: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid var(--border-subtle)',
+              background: '#090d16',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
               color: '#fff',
-              fontSize: '0.85rem',
+              fontSize: '0.84rem',
+              width: '100%',
+              outline: 'none',
             }}
           />
         </div>
       </div>
 
-      {/* Matches Grid */}
+      {/* 3. Opportunities Grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem' }}>
-          <RefreshCw className="animate-spin" size={28} color="#3b82f6" />
+        <div style={{ textAlign: 'center', padding: '3.5rem 0' }}>
+          <RefreshCw className="animate-spin" size={32} color="#3b82f6" style={{ margin: '0 auto 1rem' }} />
+          <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Matching opportunities against your dossier criteria...</p>
         </div>
       ) : filteredMatches.length > 0 ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.25rem' }}>
           {filteredMatches.map((m) => {
             const opp = m.opportunity;
-            const isHigh = m.matchPercentage >= 70;
-            const isMed = m.matchPercentage >= 50 && m.matchPercentage < 70;
+            const isHighMatch = m.matchPercentage >= 75;
+
             return (
               <div
                 key={m.id}
-                className="card"
                 style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: isHighMatch ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '12px',
+                  padding: '1.5rem',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  gap: '1rem',
-                  borderColor: isHigh ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-subtle)',
+                  gap: '1.25rem',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                    <span
-                      style={{
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '4px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        background: 'rgba(59, 130, 246, 0.15)',
-                        color: '#60a5fa',
-                      }}
-                    >
-                      {opp?.type}
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.65rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: 0, lineHeight: 1.3 }}>
+                      {opp.title}
+                    </h3>
                     <span
                       style={{
                         padding: '0.25rem 0.65rem',
-                        borderRadius: '6px',
-                        fontSize: '0.82rem',
+                        borderRadius: '20px',
+                        fontSize: '0.8rem',
                         fontWeight: 800,
-                        background: isHigh
-                          ? 'rgba(16, 185, 129, 0.2)'
-                          : isMed
-                          ? 'rgba(245, 158, 11, 0.2)'
-                          : 'rgba(239, 68, 68, 0.2)',
-                        color: isHigh ? '#34d399' : isMed ? '#fbbf24' : '#f87171',
+                        background: isHighMatch ? 'rgba(16, 185, 129, 0.18)' : 'rgba(245, 158, 11, 0.18)',
+                        color: isHighMatch ? '#34d399' : '#fbbf24',
+                        border: isHighMatch ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       {m.matchPercentage}% Match
                     </span>
                   </div>
 
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: '0 0 0.35rem' }}>
-                    {opp?.title}
-                  </h3>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <Building2 size={13} />
-                      <span>{opp?.organization}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.85rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Building2 size={14} color="#60a5fa" />
+                      <span>{opp.organization}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <MapPin size={13} />
-                      <span>{opp?.location}</span>
+                    <span>&bull;</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <MapPin size={14} color="#f472b6" />
+                      <span>{opp.location}</span>
                     </div>
                   </div>
 
-                  <p style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: '1.4', margin: '0 0 0.85rem' }}>
-                    {opp?.description}
+                  <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.55', margin: '0 0 1rem 0' }}>
+                    {opp.description}
                   </p>
 
-                  {/* Matched Requirements List */}
-                  {m.matchedRequirements && m.matchedRequirements.length > 0 && (
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <div style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700, marginBottom: '0.2rem' }}>
-                        Matched Criteria:
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
-                        {m.matchedRequirements.map((mr, i) => (
-                          <span
-                            key={i}
-                            style={{
-                              fontSize: '0.7rem',
-                              padding: '0.15rem 0.45rem',
-                              borderRadius: '4px',
-                              background: 'rgba(16, 185, 129, 0.15)',
-                              color: '#6ee7b7',
-                            }}
-                          >
-                            &bull; {mr}
-                          </span>
-                        ))}
-                      </div>
+                  {/* Requirements Checklist */}
+                  <div
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.25)',
+                      padding: '0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>
+                      Pathway Match Rationale:
                     </div>
-                  )}
-
-                  {/* Missing Requirements List */}
-                  {m.missingRequirements && m.missingRequirements.length > 0 && (
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <div style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 700, marginBottom: '0.2rem' }}>
-                        Missing Criteria:
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
-                        {m.missingRequirements.map((mr, i) => (
-                          <span
-                            key={i}
-                            style={{
-                              fontSize: '0.7rem',
-                              padding: '0.15rem 0.45rem',
-                              borderRadius: '4px',
-                              background: 'rgba(245, 158, 11, 0.15)',
-                              color: '#fde68a',
-                            }}
-                          >
-                            &times; {mr}
-                          </span>
-                        ))}
-                      </div>
+                    <div style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                      {m.reason || 'Credentials align with entry criteria and language thresholds.'}
                     </div>
-                  )}
+                  </div>
                 </div>
 
-                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                    {opp?.isDemoData ? 'Verified Partner Program' : 'Live Opportunity'}
-                  </div>
-                  <button
-                    onClick={() => setSelectedMatch(m)}
-                    className="btn btn-primary"
-                    style={{ padding: '0.4rem 0.85rem', fontSize: '0.78rem' }}
+                <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '4px',
+                      background: 'rgba(37, 99, 235, 0.15)',
+                      color: '#93c5fd',
+                      fontWeight: 600,
+                    }}
                   >
-                    View Dossier
+                    {opp.type === 'STUDY' ? 'Public University' : opp.type === 'AUSBILDUNG' ? 'Paid Dual Training' : 'Skilled Job'}
+                  </span>
+
+                  <button
+                    onClick={() => alert(`Connecting with Educaro advisor for application to: ${opp.title} (${opp.organization})`)}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.78rem', padding: '0.4rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <span>Apply via Educaro</span>
+                    <ChevronRight size={14} />
                   </button>
                 </div>
               </div>
@@ -301,72 +319,17 @@ export const OpportunitiesPage: React.FC = () => {
           })}
         </div>
       ) : (
-        <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
-          No matching opportunities found for current filters. Update your profile or click "Re-Compute Matches".
-        </div>
-      )}
-
-      {/* Opportunity Details Modal */}
-      {selectedMatch && (
-        <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: '650px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', margin: 0 }}>
-                  {selectedMatch.opportunity?.title}
-                </h3>
-                <div style={{ fontSize: '0.82rem', color: '#38bdf8', marginTop: '0.2rem' }}>
-                  {selectedMatch.opportunity?.organization} &bull; {selectedMatch.opportunity?.location}
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedMatch(null)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.2rem' }}
-              >
-                &times;
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.3rem' }}>
-                  Program Overview & Requirements
-                </div>
-                <p style={{ margin: 0, fontSize: '0.88rem', color: '#cbd5e1', lineHeight: '1.5' }}>
-                  {selectedMatch.opportunity?.description}
-                </p>
-              </div>
-
-              <div style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '0.75rem', color: '#38bdf8', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.4rem' }}>
-                  AI Match Synthesis & Next Steps
-                </div>
-                <p style={{ margin: 0, fontSize: '0.84rem', color: '#e2e8f0', lineHeight: '1.5' }}>
-                  {selectedMatch.reason || 'This program closely matches your academic degree and target German language readiness.'}
-                </p>
-                {selectedMatch.nextAction && (
-                  <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>
-                    Recommended Action: {selectedMatch.nextAction}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
-              <button onClick={() => setSelectedMatch(null)} className="btn btn-secondary">
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  alert('Application request forwarded to Educaro Advisor team for dossier submission.');
-                  setSelectedMatch(null);
-                }}
-                className="btn btn-primary"
-              >
-                Apply via Educaro
-              </button>
-            </div>
-          </div>
+        <div className="card" style={{ textAlign: 'center', padding: '3.5rem 1rem' }}>
+          <Briefcase size={38} color="#64748b" style={{ margin: '0 auto 1rem' }} />
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff', marginBottom: '0.5rem' }}>
+            No Matching Opportunities Found
+          </h2>
+          <p style={{ color: '#94a3b8', fontSize: '0.88rem', maxWidth: '440px', margin: '0 auto 1.25rem' }}>
+            Try clearing filters or search query, or re-run the qualification evaluation.
+          </p>
+          <button onClick={() => { setActiveFilter('ALL'); setSearchQuery(''); }} className="btn btn-secondary">
+            Reset Filters
+          </button>
         </div>
       )}
     </div>

@@ -11,6 +11,11 @@ import {
   FileText,
   Clock,
   ShieldCheck,
+  Award,
+  Mic,
+  Check,
+  ArrowRight,
+  MessageSquare,
 } from 'lucide-react';
 import { VideoItem } from '../types';
 
@@ -55,7 +60,7 @@ export const VideoPage: React.FC = () => {
       });
 
       if (res.data.success) {
-        setStatusMsg(`Video "${file.name}" uploaded successfully! Analyzing transcript...`);
+        setStatusMsg(`Video "${file.name}" uploaded successfully! Analyzing spoken transcript...`);
         await fetchVideos();
       }
     } catch (err: any) {
@@ -69,10 +74,10 @@ export const VideoPage: React.FC = () => {
   const handleAnalyze = async (id: string) => {
     try {
       setAnalyzingId(id);
-      setStatusMsg('Running Speech-to-Text transcription and AI synthesis...');
+      setStatusMsg('Running Whisper STT transcription and communication clarity analysis...');
       const res = await apiClient.post(`/videos/${id}/analyze`);
       if (res.data.success) {
-        setStatusMsg('Video successfully analyzed and insights generated!');
+        setStatusMsg('Video successfully analyzed and communication profile generated!');
         await fetchVideos();
       }
     } catch (err: any) {
@@ -95,31 +100,63 @@ export const VideoPage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Header Banner */}
+    <div style={{ maxWidth: '1160px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      {/* 1. Header Banner */}
       <div
         className="card"
         style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98))',
+          border: '1px solid rgba(59, 130, 246, 0.25)',
+          padding: '1.5rem 1.75rem',
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '1rem',
+          gap: '1.25rem',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
         }}
       >
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-            60-Second Video Introduction & STT
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.4rem' }}>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '12px',
+                background: 'rgba(167, 139, 250, 0.15)',
+                border: '1px solid rgba(167, 139, 250, 0.3)',
+                color: '#a78bfa',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
+              WHISPER STT • 60S COMMUNICATION PROFILE
+            </span>
+            <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+              Spoken Fluency & Motivation Analysis
+            </span>
+          </div>
+          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#fff', margin: '0 0 0.35rem 0', letterSpacing: '-0.02em' }}>
+            60-Second Video Introduction Studio
           </h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.3rem' }}>
-            Record or upload a 60-second video elevator pitch explaining your background and Germany relocation intent. Nexora transcribes speech, extracts skills, and requires your explicit approval before updating your profile.
+          <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0, maxWidth: '720px', lineHeight: 1.55 }}>
+            Deliver a concise 60-second elevator pitch explaining your background and Germany relocation intent. Nexora transcribes speech, evaluates communication clarity, and requires your explicit approval before updating your profile.
           </p>
         </div>
+
         <button
           onClick={fetchVideos}
-          className="btn btn-secondary"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
+          className="btn"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            fontSize: '0.82rem',
+            padding: '0.6rem 1.1rem',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            color: '#cbd5e1',
+          }}
         >
           <RefreshCw size={15} />
           <span>Refresh</span>
@@ -129,31 +166,32 @@ export const VideoPage: React.FC = () => {
       {statusMsg && (
         <div
           style={{
-            padding: '0.75rem 1rem',
-            borderRadius: '8px',
-            background: 'rgba(59, 130, 246, 0.15)',
+            padding: '0.85rem 1.25rem',
+            borderRadius: '10px',
+            background: 'rgba(59, 130, 246, 0.12)',
             border: '1px solid rgba(59, 130, 246, 0.3)',
             color: '#93c5fd',
-            fontSize: '0.85rem',
+            fontSize: '0.88rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.65rem',
           }}
         >
-          <CheckCircle2 size={16} />
+          <CheckCircle2 size={18} color="#60a5fa" />
           <span>{statusMsg}</span>
         </div>
       )}
 
-      {/* Upload Zone */}
+      {/* 2. Upload / Record Video Dropzone */}
       <div
         className="card"
         style={{
-          border: '2px dashed rgba(168, 85, 247, 0.4)',
-          background: 'rgba(15, 23, 42, 0.4)',
+          border: '2px dashed rgba(167, 139, 250, 0.35)',
+          background: 'rgba(15, 23, 42, 0.6)',
           textAlign: 'center',
-          padding: '2.5rem 1.5rem',
+          padding: '2.5rem 2rem',
           cursor: 'pointer',
+          transition: 'all 0.2s ease',
         }}
         onClick={() => fileInputRef.current?.click()}
       >
@@ -162,139 +200,232 @@ export const VideoPage: React.FC = () => {
           ref={fileInputRef}
           style={{ display: 'none' }}
           onChange={handleVideoUpload}
-          accept="video/mp4,video/webm,video/quicktime,video/mkv"
+          accept="video/*,audio/*"
         />
         <div
           style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '50%',
-            background: 'rgba(168, 85, 247, 0.15)',
+            width: '54px',
+            height: '54px',
+            borderRadius: '14px',
+            background: 'rgba(167, 139, 250, 0.15)',
+            border: '1px solid rgba(167, 139, 250, 0.3)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#c084fc',
-            margin: '0 auto 1rem',
+            color: '#a78bfa',
+            margin: '0 auto 1.25rem',
           }}
         >
           {uploading ? <RefreshCw className="animate-spin" size={26} /> : <Video size={26} />}
         </div>
 
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: '0 0 0.5rem' }}>
-          {uploading ? 'Uploading Video...' : 'Upload 60-Second Video Pitch'}
+        <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff', margin: '0 0 0.4rem' }}>
+          {uploading ? 'Uploading Video & Initiating Transcription...' : 'Upload Your 60-Second Video Intro'}
         </h3>
-        <p style={{ color: '#94a3b8', fontSize: '0.82rem', maxWidth: '500px', margin: '0 auto' }}>
-          Supports MP4, WebM, and MOV up to 100MB. State-of-the-art speech transcription models process German & English.
+        <p style={{ color: '#94a3b8', fontSize: '0.84rem', maxWidth: '520px', margin: '0 auto 1.25rem', lineHeight: 1.5 }}>
+          Record in English or German. Share: (1) Your educational background, (2) Why Germany, and (3) Your career goal (Study, Ausbildung, or Tech job). MP4, WebM, or MOV up to 50MB.
         </p>
+
+        <button
+          className="btn btn-primary"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.55rem 1.25rem' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            fileInputRef.current?.click();
+          }}
+        >
+          <Upload size={15} />
+          <span>Select Video File</span>
+        </button>
       </div>
 
-      {/* Video Dossier List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* 3. Processed Video Dossier Feed */}
+      <div
+        className="card"
+        style={{
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          padding: '1.75rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+              Submitted Video Introductions ({videos.length})
+            </h2>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
+              Transcribed via Whisper speech-to-text with provenance tracking
+            </div>
+          </div>
+        </div>
+
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '2rem' }}>
-            <RefreshCw className="animate-spin" size={26} color="#a855f7" />
+          <div style={{ textAlign: 'center', padding: '2.5rem' }}>
+            <RefreshCw className="animate-spin" size={26} color="#3b82f6" />
           </div>
         ) : videos.length > 0 ? (
-          videos.map((vid) => (
-            <div key={vid.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {videos.map((vid) => (
+              <div
+                key={vid.id}
+                style={{
+                  background: 'rgba(30, 41, 59, 0.5)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '12px',
+                  padding: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <Video size={20} color="#c084fc" />
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
-                      {vid.filename}
-                    </h3>
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-                    Status: <strong style={{ color: '#fff' }}>{vid.status}</strong>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {vid.status !== 'COMPLETED' && (
-                    <button
-                      onClick={() => handleAnalyze(vid.id)}
-                      disabled={analyzingId === vid.id}
-                      className="btn btn-primary"
-                      style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    <div
+                      style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '8px',
+                        background: 'rgba(167, 139, 250, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#a78bfa',
+                      }}
                     >
-                      {analyzingId === vid.id ? <RefreshCw className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                      <span>Trigger STT & AI</span>
-                    </button>
-                  )}
-                  {vid.analysis && !vid.analysis.applicantApproved && (
-                    <button
-                      onClick={() => handleApprove(vid.id)}
-                      className="btn btn-success"
-                      style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#10b981', color: '#fff' }}
-                    >
-                      <ShieldCheck size={15} />
-                      <span>Approve for Dossier</span>
-                    </button>
-                  )}
-                  {vid.analysis?.applicantApproved && (
-                    <span className="badge badge-success">
-                      Approved & Integrated
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Transcript Block */}
-              {vid.transcript && (
-                <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <FileText size={16} color="#60a5fa" />
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-                      Speech-to-Text Transcript
-                    </span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.88rem', color: '#e2e8f0', lineHeight: '1.5', fontStyle: 'italic' }}>
-                    "{vid.transcript}"
-                  </p>
-                </div>
-              )}
-
-              {/* Analysis Cards */}
-              {vid.analysis && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-                  <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                      Background Summary
+                      <Video size={18} />
                     </div>
-                    <p style={{ margin: 0, fontSize: '0.82rem', color: '#cbd5e1', lineHeight: '1.4' }}>
-                      {vid.analysis.backgroundSummary || 'Extracted summary from candidate monologue.'}
+                    <div>
+                      <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.92rem' }}>
+                        {vid.filename}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                        {vid.durationSeconds ? `${vid.durationSeconds}s duration` : 'Standard Duration'} &bull; Status:{' '}
+                        <span style={{ color: vid.status === 'COMPLETED' ? '#34d399' : '#60a5fa' }}>{vid.status}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {vid.status !== 'COMPLETED' && (
+                      <button
+                        onClick={() => handleAnalyze(vid.id)}
+                        disabled={analyzingId === vid.id}
+                        className="btn btn-primary"
+                        style={{ fontSize: '0.78rem', padding: '0.45rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        {analyzingId === vid.id ? <RefreshCw className="animate-spin" size={13} /> : <Sparkles size={13} />}
+                        <span>Analyze Video</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Spoken Transcript Block */}
+                {vid.transcript && (
+                  <div
+                    style={{
+                      background: '#090d16',
+                      borderRadius: '8px',
+                      padding: '1rem',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Mic size={13} color="#60a5fa" />
+                      <span>Whisper STT Spoken Transcript:</span>
+                    </div>
+                    <p style={{ color: '#e2e8f0', fontSize: '0.85rem', lineHeight: 1.6, margin: 0, fontStyle: 'italic' }}>
+                      "{vid.transcript}"
                     </p>
                   </div>
+                )}
 
-                  <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                      Germany Motivation
-                    </div>
-                    <p style={{ margin: 0, fontSize: '0.82rem', color: '#cbd5e1', lineHeight: '1.4' }}>
-                      {vid.analysis.germanyMotivation || 'Clear intent to relocate to Germany for career growth.'}
-                    </p>
-                  </div>
-
-                  <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                      Recognized Skills
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.3rem' }}>
-                      {vid.analysis.relevantSkills?.map((s, idx) => (
-                        <span key={idx} className="badge badge-primary" style={{ fontSize: '0.72rem' }}>
-                          {s}
+                {/* Analysis & Extracted Synthesis */}
+                {vid.analysis && (
+                  <div
+                    style={{
+                      background: 'rgba(15, 23, 42, 0.7)',
+                      borderRadius: '8px',
+                      padding: '1.25rem',
+                      border: '1px solid rgba(59, 130, 246, 0.2)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase' }}>
+                        Communication Profile Synthesis
+                      </span>
+                      {vid.analysis.confidence && (
+                        <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                          Confidence: {Math.round(vid.analysis.confidence * 100)}%
                         </span>
-                      )) || <span style={{ color: '#64748b', fontSize: '0.8rem' }}>None identified</span>}
+                      )}
+                    </div>
+
+                    {vid.analysis.backgroundSummary && (
+                      <div style={{ fontSize: '0.84rem', color: '#cbd5e1' }}>
+                        <strong style={{ color: '#fff' }}>Background:</strong> {vid.analysis.backgroundSummary}
+                      </div>
+                    )}
+
+                    {vid.analysis.germanyMotivation && (
+                      <div style={{ fontSize: '0.84rem', color: '#cbd5e1' }}>
+                        <strong style={{ color: '#fff' }}>Germany Intent:</strong> {vid.analysis.germanyMotivation}
+                      </div>
+                    )}
+
+                    {vid.analysis.relevantSkills && vid.analysis.relevantSkills.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <strong style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Detected Strengths:</strong>
+                        {vid.analysis.relevantSkills.map((s, idx) => (
+                          <span
+                            key={idx}
+                            style={{
+                              fontSize: '0.72rem',
+                              padding: '0.2rem 0.55rem',
+                              background: 'rgba(37, 99, 235, 0.2)',
+                              color: '#93c5fd',
+                              borderRadius: '4px',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Applicant Approval Action */}
+                    <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        Provenance: <strong style={{ color: '#a78bfa' }}>VIDEO_EXTRACTED</strong> (Requires Approval)
+                      </span>
+
+                      {vid.analysis.applicantApproved ? (
+                        <span style={{ fontSize: '0.78rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <Check size={14} />
+                          <span>Approved & Integrated into Dossier</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleApprove(vid.id)}
+                          className="btn btn-primary"
+                          style={{ fontSize: '0.78rem', padding: '0.45rem 1rem' }}
+                        >
+                          Approve Profile Update
+                        </button>
+                      )}
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))
+                )}
+              </div>
+            ))}
+          </div>
         ) : (
-          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 0', color: '#94a3b8' }}>
-            No video introductions uploaded yet. Record a quick 60s introduction to boost your profile score.
+          <div style={{ textAlign: 'center', padding: '2rem 0', color: '#94a3b8', fontSize: '0.88rem' }}>
+            No video introductions uploaded yet. Record a 60-second clip to enhance your credential dossier.
           </div>
         )}
       </div>

@@ -233,7 +233,7 @@ export const ProfilePage: React.FC = () => {
   }
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ maxWidth: '1240px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       {/* Header Banner */}
       <div
         className="card"
@@ -242,24 +242,79 @@ export const ProfilePage: React.FC = () => {
           flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '1rem',
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
+          gap: '1.5rem',
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.92))',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 8px 32px -4px rgba(0, 0, 0, 0.5)',
+          padding: '1.75rem 2rem',
         }}
       >
-        <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-            Applicant Dossier & Provenance
+        <div style={{ maxWidth: '780px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                background: 'rgba(59, 130, 246, 0.15)',
+                color: '#60a5fa',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <Award size={13} />
+              Applicant Dossier & Provenance Ledger
+            </span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <CheckCircle2 size={13} />
+              KMK Anabin & ZAB Indexed
+            </span>
+          </div>
+
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em' }}>
+            Verified Credential Dossier
           </h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.3rem' }}>
-            Every credential in Nexora records its origin (document extraction, speech recognition, or applicant input) for official German authority review.
+          <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: '1.5' }}>
+            Every credential in Nexora records its extraction provenance (OCR document scan, speech transcription, or applicant entry) along with confidence telemetry for German consulate and employer validation.
           </p>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+
+        <div style={{ minWidth: '180px', textAlign: 'right' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem' }}>
             Dossier Completeness
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#38bdf8' }}>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#38bdf8' }}>
             {profile?.profileCompleteness || 0}%
+          </div>
+          <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', marginTop: '0.4rem', overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${profile?.profileCompleteness || 0}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #3b82f6, #38bdf8)',
+                borderRadius: '3px',
+              }}
+            />
           </div>
         </div>
       </div>
@@ -267,15 +322,19 @@ export const ProfilePage: React.FC = () => {
       {feedbackMsg && (
         <div
           style={{
-            padding: '0.75rem 1rem',
-            borderRadius: '8px',
-            background: 'rgba(59, 130, 246, 0.15)',
+            padding: '0.85rem 1.25rem',
+            borderRadius: '10px',
+            background: 'rgba(59, 130, 246, 0.12)',
             border: '1px solid rgba(59, 130, 246, 0.3)',
             color: '#93c5fd',
-            fontSize: '0.85rem',
+            fontSize: '0.88rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
           }}
         >
-          {feedbackMsg}
+          <CheckCircle2 size={18} color="#60a5fa" />
+          <span>{feedbackMsg}</span>
         </div>
       )}
 
@@ -284,18 +343,18 @@ export const ProfilePage: React.FC = () => {
         style={{
           display: 'flex',
           flexWrap: 'wrap',
-          gap: '0.5rem',
-          borderBottom: '1px solid var(--border-subtle)',
-          paddingBottom: '0.5rem',
+          gap: '0.65rem',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          paddingBottom: '0.75rem',
         }}
       >
         {[
-          { key: 'personal', label: 'Personal & Goal', icon: User },
-          { key: 'education', label: `Education (${profile?.educations?.length || 0})`, icon: GraduationCap },
-          { key: 'employment', label: `Employment (${profile?.employments?.length || 0})`, icon: Briefcase },
-          { key: 'skills', label: `Skills (${profile?.skills?.length || 0})`, icon: Layers },
-          { key: 'languages', label: `Languages (${profile?.languages?.length || 0})`, icon: Globe },
-          { key: 'motivation', label: 'Motivation Statement', icon: Heart },
+          { key: 'personal', label: 'Personal & Pathway', icon: User, count: null },
+          { key: 'education', label: 'Education', icon: GraduationCap, count: profile?.educations?.length },
+          { key: 'employment', label: 'Employment', icon: Briefcase, count: profile?.employments?.length },
+          { key: 'skills', label: 'Skills', icon: Layers, count: profile?.skills?.length },
+          { key: 'languages', label: 'Languages', icon: Globe, count: profile?.languages?.length },
+          { key: 'motivation', label: 'Motivation Statement', icon: Heart, count: null },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -306,11 +365,12 @@ export const ProfilePage: React.FC = () => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.55rem 0.9rem',
-                borderRadius: '8px',
-                border: 'none',
-                background: isActive ? 'rgba(37, 99, 235, 0.25)' : 'transparent',
+                gap: '0.55rem',
+                padding: '0.65rem 1.1rem',
+                borderRadius: '10px',
+                border: '1px solid',
+                borderColor: isActive ? 'rgba(59, 130, 246, 0.4)' : 'rgba(255, 255, 255, 0.06)',
+                background: isActive ? 'rgba(37, 99, 235, 0.2)' : 'rgba(15, 23, 42, 0.6)',
                 color: isActive ? '#60a5fa' : '#94a3b8',
                 fontWeight: isActive ? 700 : 500,
                 fontSize: '0.85rem',
@@ -320,6 +380,20 @@ export const ProfilePage: React.FC = () => {
             >
               <Icon size={16} />
               <span>{tab.label}</span>
+              {tab.count !== null && tab.count !== undefined && (
+                <span
+                  style={{
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '10px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    background: isActive ? 'rgba(59, 130, 246, 0.3)' : 'rgba(255, 255, 255, 0.08)',
+                    color: isActive ? '#fff' : '#cbd5e1',
+                  }}
+                >
+                  {tab.count}
+                </span>
+              )}
             </button>
           );
         })}

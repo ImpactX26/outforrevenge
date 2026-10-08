@@ -16,6 +16,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Clock,
+  Activity,
+  Cpu,
+  Server,
 } from 'lucide-react';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -62,35 +65,76 @@ export const AdminDashboardPage: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ maxWidth: '1360px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       {/* Header Banner */}
       <div
         className="card"
         style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.92))',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 8px 32px -4px rgba(0, 0, 0, 0.5)',
+          padding: '1.75rem 2rem',
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '1rem',
+          gap: '1.5rem',
         }}
       >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.2rem' }}>
-            <BarChart3 size={24} color="#38bdf8" />
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-              Nexora System Administration & Telemetry
-            </h1>
+        <div style={{ maxWidth: '780px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                background: 'rgba(59, 130, 246, 0.15)',
+                color: '#60a5fa',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <Cpu size={13} />
+              Multi-Agent Orchestrator (max 8 loops)
+            </span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <Database size={13} />
+              Neon Cloud PostgreSQL Connected
+            </span>
           </div>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>
-            Inspect multi-agent bounded execution loops, monitor PostgreSQL shared state, and view compliance audit trails.
+
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em' }}>
+            Nexora System Command & Telemetry
+          </h1>
+          <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: '1.5' }}>
+            Monitor distributed agent execution states, applicant throughput, immutable compliance audit trails, and Educaro partner opportunity pipelines.
           </p>
         </div>
 
         <button
           onClick={fetchData}
           className="btn btn-secondary"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem', padding: '0.65rem 1.15rem' }}
         >
           <RefreshCw size={15} />
           <span>Refresh All</span>
@@ -98,63 +142,63 @@ export const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* Analytics KPI Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-        <div className="card">
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Total Registered Users
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#fff', marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
             {analytics?.usersCount || users.length || 0}
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
-            Applicants & Consultants
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem' }}>
+            Applicants, Advisors & Admins
           </div>
         </div>
 
-        <div className="card">
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Average Dossier Readiness
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#10b981', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#10b981', marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
             {analytics?.avgReadinessScore || 72}%
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
-            German Qualification Score
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem' }}>
+            German Regulatory Qualification
           </div>
         </div>
 
-        <div className="card">
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Active Opportunities
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#38bdf8', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#38bdf8', marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
             {analytics?.opportunitiesCount || 6}
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem' }}>
             Uni & Ausbildung Partners
           </div>
         </div>
 
-        <div className="card">
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Agent Executions Logged
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#a78bfa', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#a78bfa', marginTop: '0.35rem', letterSpacing: '-0.02em' }}>
             {analytics?.agentExecutionsCount || agentExecutions.length || 0}
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
-            Bounded Loop Traces
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem' }}>
+            Bounded Sub-Agent Traces
           </div>
         </div>
       </div>
 
       {/* Tabs Navigation */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.65rem' }}>
         {[
-          { key: 'analytics', label: 'Overview & Metrics', icon: BarChart3 },
-          { key: 'agents', label: `Agent Telemetry (${agentExecutions.length})`, icon: Bot },
-          { key: 'users', label: `Users (${users.length})`, icon: Users },
-          { key: 'audit', label: `Audit Trail (${auditLogs.length})`, icon: ShieldCheck },
+          { key: 'analytics', label: 'Architecture Overview', icon: BarChart3, count: null },
+          { key: 'agents', label: 'Agent Telemetry', icon: Bot, count: agentExecutions.length },
+          { key: 'users', label: 'Registered Users', icon: Users, count: users.length },
+          { key: 'audit', label: 'Immutable Audit Trail', icon: ShieldCheck, count: auditLogs.length },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -165,19 +209,35 @@ export const AdminDashboardPage: React.FC = () => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.55rem 0.95rem',
-                borderRadius: '8px',
-                border: 'none',
-                background: isActive ? 'rgba(37, 99, 235, 0.25)' : 'transparent',
+                gap: '0.55rem',
+                padding: '0.65rem 1.15rem',
+                borderRadius: '10px',
+                border: '1px solid',
+                borderColor: isActive ? 'rgba(59, 130, 246, 0.4)' : 'rgba(255, 255, 255, 0.06)',
+                background: isActive ? 'rgba(37, 99, 235, 0.2)' : 'rgba(15, 23, 42, 0.6)',
                 color: isActive ? '#60a5fa' : '#94a3b8',
                 fontWeight: isActive ? 700 : 500,
-                fontSize: '0.82rem',
+                fontSize: '0.85rem',
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
               }}
             >
               <Icon size={16} />
               <span>{tab.label}</span>
+              {tab.count !== null && (
+                <span
+                  style={{
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '10px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    background: isActive ? 'rgba(59, 130, 246, 0.3)' : 'rgba(255, 255, 255, 0.08)',
+                    color: isActive ? '#fff' : '#cbd5e1',
+                  }}
+                >
+                  {tab.count}
+                </span>
+              )}
             </button>
           );
         })}
@@ -185,34 +245,36 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Tab 1: Overview */}
       {activeTab === 'analytics' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.25rem' }}>
-          <div className="card">
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', marginBottom: '0.75rem' }}>
-              Multi-Agent Architecture Summary
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.5rem' }}>
+          <div className="card" style={{ padding: '1.75rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Cpu size={18} color="#60a5fa" />
+              Multi-Agent Architecture Principles
             </h3>
-            <div style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.6' }}>
-              <p>
-                <strong>Bounded Execution:</strong> The Nexora Master Orchestrator operates with a hard maximum of 8 iterations per run to strictly prevent infinite loops or runaway LLM queries.
+            <div style={{ fontSize: '0.88rem', color: '#cbd5e1', lineHeight: '1.65' }}>
+              <p style={{ marginBottom: '0.85rem' }}>
+                <strong style={{ color: '#fff' }}>Bounded Loop Safety:</strong> The Nexora Master Orchestrator enforces a hard maximum of 8 execution iterations per run to categorically prevent infinite recursions or hallucinated API loops.
               </p>
-              <p>
-                <strong>PostgreSQL Shared State:</strong> All state transitions (credential extraction, qualification evaluations, routing decisions) are persisted in ACID-compliant tables. Agents do not rely on in-memory chat state.
+              <p style={{ marginBottom: '0.85rem' }}>
+                <strong style={{ color: '#fff' }}>PostgreSQL Shared State:</strong> All state mutations (credential parsing, qualification evaluation, opportunity ranking) are committed to ACID-compliant PostgreSQL tables. Agents operate statelessly over this verified database.
               </p>
-              <p>
-                <strong>Deterministic Foundation:</strong> Qualification rules are evaluated through verified German legislation logic (Anerkennungsgesetz). AI generates explanations over deterministic proof.
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: '#fff' }}>Deterministic Core:</strong> Qualification logic is calculated via verified German statutes (Anerkennungsgesetz & BBiG). LLMs are leveraged exclusively for idiomatic formulation and communication translation.
               </p>
             </div>
           </div>
 
-          <div className="card">
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', marginBottom: '0.75rem' }}>
-              Educaro Escalation Architecture
+          <div className="card" style={{ padding: '1.75rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ShieldCheck size={18} color="#10b981" />
+              Educaro Commercial Escalation
             </h3>
-            <div style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.6' }}>
-              <p>
-                <strong>Deterministic Routing:</strong> When missing credentials require academic translation, uni-assist filing, or specialized Ausbildung matching, candidates are guided to official Educaro services.
+            <div style={{ fontSize: '0.88rem', color: '#cbd5e1', lineHeight: '1.65' }}>
+              <p style={{ marginBottom: '0.85rem' }}>
+                <strong style={{ color: '#fff' }}>Actionable Service Bridging:</strong> When gaps are identified in applicant dossiers (e.g., German language requirement B1 or missing ZAB equivalence), candidates receive direct referral to official Educaro programs.
               </p>
-              <p>
-                <strong>Human-in-the-Loop Escalation:</strong> When discrepancies occur or when dossier completeness reaches 80%+, an Educaro Consultant is assigned to conduct official verification.
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: '#fff' }}>Human-in-the-Loop Verification:</strong> High-readiness candidates (&ge;80%) and those with flagged document anomalies are automatically queued to Educaro caseworkers for manual verification.
               </p>
             </div>
           </div>
@@ -221,56 +283,75 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Tab 2: Agent Telemetry */}
       {activeTab === 'agents' && (
-        <div className="card" style={{ padding: '1rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', marginBottom: '1rem' }}>
-            Multi-Agent Execution Logs
+        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', marginBottom: '1.25rem' }}>
+            Multi-Agent Execution Log Stream
           </h3>
 
           {agentExecutions.length > 0 ? (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: '#94a3b8' }}>
-                    <th style={{ padding: '0.65rem' }}>Agent Type</th>
-                    <th style={{ padding: '0.65rem' }}>Status</th>
-                    <th style={{ padding: '0.65rem' }}>Started At</th>
-                    <th style={{ padding: '0.65rem' }}>Duration</th>
-                    <th style={{ padding: '0.65rem' }}>Confidence</th>
-                    <th style={{ padding: '0.65rem' }}>Error / Output</th>
+                  <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8' }}>
+                    <th style={{ padding: '0.75rem' }}>Agent Module</th>
+                    <th style={{ padding: '0.75rem' }}>Status</th>
+                    <th style={{ padding: '0.75rem' }}>Timestamp</th>
+                    <th style={{ padding: '0.75rem' }}>Duration</th>
+                    <th style={{ padding: '0.75rem' }}>Confidence</th>
+                    <th style={{ padding: '0.75rem' }}>Output / Error</th>
                   </tr>
                 </thead>
                 <tbody>
                   {agentExecutions.map((act) => (
-                    <tr key={act.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                      <td style={{ padding: '0.75rem', fontWeight: 700, color: '#38bdf8' }}>
+                    <tr key={act.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                      <td style={{ padding: '0.85rem', fontWeight: 700, color: '#38bdf8' }}>
                         {act.agentType}
                       </td>
-                      <td style={{ padding: '0.75rem' }}>
+                      <td style={{ padding: '0.85rem' }}>
                         <span
-                          className={`badge ${
-                            act.status === 'COMPLETED'
-                              ? 'badge-success'
-                              : act.status === 'FAILED'
-                              ? 'badge-danger'
-                              : 'badge-primary'
-                          }`}
+                          style={{
+                            padding: '0.15rem 0.55rem',
+                            borderRadius: '6px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            background:
+                              act.status === 'COMPLETED'
+                                ? 'rgba(16, 185, 129, 0.15)'
+                                : act.status === 'FAILED'
+                                ? 'rgba(239, 68, 68, 0.15)'
+                                : 'rgba(59, 130, 246, 0.15)',
+                            color:
+                              act.status === 'COMPLETED'
+                                ? '#34d399'
+                                : act.status === 'FAILED'
+                                ? '#f87171'
+                                : '#60a5fa',
+                            border: `1px solid ${
+                              act.status === 'COMPLETED'
+                                ? 'rgba(16, 185, 129, 0.3)'
+                                : act.status === 'FAILED'
+                                ? 'rgba(239, 68, 68, 0.3)'
+                                : 'rgba(59, 130, 246, 0.3)'
+                            }`,
+                            textTransform: 'uppercase',
+                          }}
                         >
                           {act.status}
                         </span>
                       </td>
-                      <td style={{ padding: '0.75rem', color: '#cbd5e1' }}>
-                        {new Date(act.startedAt).toLocaleString()}
+                      <td style={{ padding: '0.85rem', color: '#cbd5e1' }}>
+                        {new Date(act.startedAt).toLocaleString('de-DE')}
                       </td>
-                      <td style={{ padding: '0.75rem', color: '#94a3b8' }}>
+                      <td style={{ padding: '0.85rem', color: '#94a3b8' }}>
                         {act.completedAt
                           ? `${(new Date(act.completedAt).getTime() - new Date(act.startedAt).getTime())} ms`
-                          : 'In progress'}
+                          : 'Executing'}
                       </td>
-                      <td style={{ padding: '0.75rem', color: '#10b981' }}>
+                      <td style={{ padding: '0.85rem', color: '#10b981', fontWeight: 600 }}>
                         {act.confidence ? `${Math.round(act.confidence * 100)}%` : '100%'}
                       </td>
-                      <td style={{ padding: '0.75rem', color: act.error ? '#f87171' : '#94a3b8' }}>
-                        {act.error || 'Success'}
+                      <td style={{ padding: '0.85rem', color: act.error ? '#f87171' : '#94a3b8' }}>
+                        {act.error || 'Clean completion'}
                       </td>
                     </tr>
                   ))}
@@ -278,7 +359,7 @@ export const AdminDashboardPage: React.FC = () => {
               </table>
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: '2.5rem', color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: '3.5rem', color: '#94a3b8' }}>
               No agent execution traces recorded yet.
             </div>
           )}
@@ -287,33 +368,46 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Tab 3: Users */}
       {activeTab === 'users' && (
-        <div className="card" style={{ padding: '1rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', marginBottom: '1rem' }}>
-            Registered Users ({users.length})
+        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', marginBottom: '1.25rem' }}>
+            Registered Platform Users ({users.length})
           </h3>
 
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: '#94a3b8' }}>
-                  <th style={{ padding: '0.65rem' }}>Name</th>
-                  <th style={{ padding: '0.65rem' }}>Email</th>
-                  <th style={{ padding: '0.65rem' }}>Role</th>
-                  <th style={{ padding: '0.65rem' }}>Created At</th>
+                <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8' }}>
+                  <th style={{ padding: '0.75rem' }}>Name</th>
+                  <th style={{ padding: '0.75rem' }}>Email Address</th>
+                  <th style={{ padding: '0.75rem' }}>Role</th>
+                  <th style={{ padding: '0.75rem' }}>Registration Date</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: 600, color: '#fff' }}>
+                  <tr key={u.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                    <td style={{ padding: '0.85rem', fontWeight: 600, color: '#fff' }}>
                       {u.firstName} {u.lastName}
                     </td>
-                    <td style={{ padding: '0.75rem', color: '#38bdf8' }}>{u.email}</td>
-                    <td style={{ padding: '0.75rem' }}>
-                      <span className="badge badge-primary">{u.role}</span>
+                    <td style={{ padding: '0.85rem', color: '#38bdf8' }}>{u.email}</td>
+                    <td style={{ padding: '0.85rem' }}>
+                      <span
+                        style={{
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '6px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          background: 'rgba(59, 130, 246, 0.15)',
+                          color: '#60a5fa',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {u.role}
+                      </span>
                     </td>
-                    <td style={{ padding: '0.75rem', color: '#94a3b8' }}>
-                      {new Date(u.createdAt).toLocaleDateString()}
+                    <td style={{ padding: '0.85rem', color: '#94a3b8' }}>
+                      {new Date(u.createdAt).toLocaleDateString('de-DE')}
                     </td>
                   </tr>
                 ))}
@@ -325,32 +419,36 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Tab 4: Audit Logs */}
       {activeTab === 'audit' && (
-        <div className="card" style={{ padding: '1rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', marginBottom: '1rem' }}>
+        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', marginBottom: '1.25rem' }}>
             Immutable System Audit Logs
           </h3>
 
           {auditLogs.length > 0 ? (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: '#94a3b8' }}>
-                    <th style={{ padding: '0.65rem' }}>Action</th>
-                    <th style={{ padding: '0.65rem' }}>Entity</th>
-                    <th style={{ padding: '0.65rem' }}>User / Actor</th>
-                    <th style={{ padding: '0.65rem' }}>Timestamp</th>
+                  <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8' }}>
+                    <th style={{ padding: '0.75rem' }}>Action</th>
+                    <th style={{ padding: '0.75rem' }}>Target Entity</th>
+                    <th style={{ padding: '0.75rem' }}>Actor</th>
+                    <th style={{ padding: '0.75rem' }}>Timestamp</th>
                   </tr>
                 </thead>
                 <tbody>
                   {auditLogs.map((log) => (
-                    <tr key={log.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                      <td style={{ padding: '0.75rem', fontWeight: 600, color: '#fff' }}>
+                    <tr key={log.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                      <td style={{ padding: '0.85rem', fontWeight: 600, color: '#fff' }}>
                         {log.action}
                       </td>
-                      <td style={{ padding: '0.75rem', color: '#94a3b8' }}>{log.entityType}</td>
-                      <td style={{ padding: '0.75rem', color: '#cbd5e1' }}>{log.userId?.substring(0, 8) || 'System'}</td>
-                      <td style={{ padding: '0.75rem', color: '#64748b' }}>
-                        {new Date(log.createdAt).toLocaleString()}
+                      <td style={{ padding: '0.85rem', color: '#94a3b8' }}>{log.entityType}</td>
+                      <td style={{ padding: '0.85rem', color: '#cbd5e1' }}>
+                        <code style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '0.1rem 0.35rem', borderRadius: '4px', color: '#38bdf8' }}>
+                          {log.userId?.substring(0, 8) || 'SYSTEM'}
+                        </code>
+                      </td>
+                      <td style={{ padding: '0.85rem', color: '#64748b' }}>
+                        {new Date(log.createdAt).toLocaleString('de-DE')}
                       </td>
                     </tr>
                   ))}
@@ -358,7 +456,7 @@ export const AdminDashboardPage: React.FC = () => {
               </table>
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: '2.5rem', color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: '3.5rem', color: '#94a3b8' }}>
               No audit logs recorded yet.
             </div>
           )}

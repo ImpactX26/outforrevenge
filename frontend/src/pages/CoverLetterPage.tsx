@@ -9,6 +9,12 @@ import {
   Building2,
   ArrowRight,
   Save,
+  Check,
+  FileText,
+  ShieldCheck,
+  Briefcase,
+  HelpCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { OpportunityItem } from '../types';
 
@@ -69,7 +75,7 @@ export const CoverLetterPage: React.FC = () => {
       });
 
       if (res.data.success && res.data.coverLetter) {
-        setStatusMsg('New German Anschreiben generated from profile and opportunity requirements!');
+        setStatusMsg('New German Anschreiben generated adhering to DIN 5008 standards!');
         await fetchData();
       }
     } catch (err: any) {
@@ -88,7 +94,7 @@ export const CoverLetterPage: React.FC = () => {
         title: letterTitle,
       });
       if (res.data.success) {
-        setStatusMsg('Changes saved successfully!');
+        setStatusMsg('Anschreiben draft saved successfully!');
         setTimeout(() => setStatusMsg(null), 3000);
       }
     } catch (err) {
@@ -104,57 +110,118 @@ export const CoverLetterPage: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const wordCount = letterContent ? letterContent.trim().split(/\s+/).length : 0;
+  const selectedOpp = opportunities.find((o) => o.id === selectedOpportunityId);
+
   return (
-    <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ maxWidth: '1360px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       {/* Header Banner */}
       <div
         className="card"
         style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.92))',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 8px 32px -4px rgba(0, 0, 0, 0.5)',
+          padding: '1.75rem 2rem',
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '1rem',
+          gap: '1.5rem',
         }}
       >
-        <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-            German Anschreiben Generator (DIN 5008)
+        <div style={{ maxWidth: '780px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                background: 'rgba(59, 130, 246, 0.15)',
+                color: '#60a5fa',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <FileText size={13} />
+              DIN 5008 Briefnorm
+            </span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              <ShieldCheck size={13} />
+              German Corporate Etiquette
+            </span>
+          </div>
+
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em' }}>
+            German Anschreiben Generator
           </h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.3rem' }}>
-            Creates tailored German cover letters matching target universities and employers, formatted with formal German etiquette (Betreff, Anrede, Grußformel).
+          <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: '1.5' }}>
+            Tailor high-impact German cover letters aligned with specific universities, hospitals, or vocational training enterprises. Automatically structured with formal German salutations, motivation paragraphs, and career qualifications.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <select
-            value={selectedOpportunityId}
-            onChange={(e) => setSelectedOpportunityId(e.target.value)}
-            style={{
-              padding: '0.55rem 0.85rem',
-              borderRadius: '8px',
-              background: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid var(--border-subtle)',
-              color: '#fff',
-              fontSize: '0.82rem',
-              maxWidth: '260px',
-            }}
-          >
-            {opportunities.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.title} ({o.organization})
-              </option>
-            ))}
-          </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+              Target Opportunity
+            </label>
+            <select
+              value={selectedOpportunityId}
+              onChange={(e) => setSelectedOpportunityId(e.target.value)}
+              style={{
+                padding: '0.6rem 0.85rem',
+                borderRadius: '8px',
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: '1px solid var(--border-subtle)',
+                color: '#fff',
+                fontSize: '0.82rem',
+                maxWidth: '280px',
+                outline: 'none',
+              }}
+            >
+              {opportunities.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.title} ({o.organization})
+                </option>
+              ))}
+            </select>
+          </div>
 
           <button
             onClick={handleGenerate}
             disabled={generating}
             className="btn btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.6rem 1.25rem' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              fontSize: '0.85rem',
+              padding: '0.7rem 1.35rem',
+              alignSelf: 'flex-end',
+              boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.39)',
+            }}
           >
-            {generating ? <RefreshCw className="animate-spin" size={15} /> : <Sparkles size={15} />}
+            {generating ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />}
             <span>Generate Anschreiben</span>
           </button>
         </div>
@@ -163,33 +230,36 @@ export const CoverLetterPage: React.FC = () => {
       {statusMsg && (
         <div
           style={{
-            padding: '0.75rem 1rem',
-            borderRadius: '8px',
-            background: 'rgba(59, 130, 246, 0.15)',
+            padding: '0.85rem 1.25rem',
+            borderRadius: '10px',
+            background: 'rgba(59, 130, 246, 0.12)',
             border: '1px solid rgba(59, 130, 246, 0.3)',
             color: '#93c5fd',
-            fontSize: '0.85rem',
+            fontSize: '0.88rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.65rem',
           }}
         >
-          <CheckCircle2 size={16} />
+          <CheckCircle2 size={18} color="#60a5fa" />
           <span>{statusMsg}</span>
         </div>
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem' }}>
-          <RefreshCw className="animate-spin" size={28} color="#3b82f6" />
+        <div style={{ textAlign: 'center', padding: '4rem' }}>
+          <RefreshCw className="animate-spin" size={32} color="#3b82f6" />
+          <p style={{ marginTop: '1rem', color: '#94a3b8', fontSize: '0.9rem' }}>Loading Anschreiben drafts...</p>
         </div>
       ) : activeLetter ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '1.5rem', alignItems: 'flex-start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '1.75rem', alignItems: 'flex-start' }}>
           {/* Left Column: Letter History & Settings */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div className="card" style={{ padding: '1rem' }}>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
-                Saved Letters ({coverLetters.length})
+            <div className="card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Saved Anschreiben ({coverLetters.length})
+                </span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {coverLetters.map((cl) => (
@@ -202,55 +272,94 @@ export const CoverLetterPage: React.FC = () => {
                     }}
                     style={{
                       textAlign: 'left',
-                      padding: '0.6rem 0.8rem',
-                      borderRadius: '6px',
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '8px',
                       border: '1px solid',
                       borderColor: activeLetter?.id === cl.id ? '#3b82f6' : 'var(--border-subtle)',
                       background: activeLetter?.id === cl.id ? 'rgba(37, 99, 235, 0.2)' : 'rgba(15, 23, 42, 0.6)',
                       color: activeLetter?.id === cl.id ? '#fff' : '#cbd5e1',
-                      fontSize: '0.82rem',
+                      fontSize: '0.84rem',
                       cursor: 'pointer',
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    <div style={{ fontWeight: 600 }}>{cl.title || 'Anschreiben'}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem' }}>
-                      {new Date(cl.createdAt).toLocaleDateString()}
+                    <div style={{ fontWeight: 600 }}>{cl.title || 'Bewerbungsschreiben'}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
+                      {new Date(cl.createdAt).toLocaleDateString('de-DE')}
                     </div>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <label style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+            {/* Document Controls Card */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', padding: '1.25rem' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Document Title
               </label>
               <input
                 type="text"
                 value={letterTitle}
                 onChange={(e) => setLetterTitle(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid var(--border-subtle)', color: '#fff', fontSize: '0.82rem' }}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '8px',
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid var(--border-subtle)',
+                  color: '#fff',
+                  fontSize: '0.84rem',
+                  outline: 'none',
+                }}
               />
 
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', fontSize: '0.75rem', color: '#64748b' }}>
+                <span>Word count: <strong>{wordCount}</strong></span>
+                <span>Language: <strong>German (Formal)</strong></span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.25rem' }}>
                 <button
                   onClick={handleSave}
                   disabled={saving}
                   className="btn btn-primary"
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.8rem' }}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.6rem' }}
                 >
-                  <Save size={14} />
+                  <Save size={15} />
                   <span>{saving ? 'Saving...' : 'Save Draft'}</span>
                 </button>
                 <button
                   onClick={handleCopy}
                   className="btn btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', padding: '0.6rem 1rem' }}
                 >
-                  <Copy size={14} />
+                  {copied ? <Check size={15} color="#10b981" /> : <Copy size={15} />}
                   <span>{copied ? 'Copied!' : 'Copy'}</span>
                 </button>
               </div>
+            </div>
+
+            {/* DIN 5008 Guidelines */}
+            <div
+              className="card"
+              style={{
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                padding: '1.25rem',
+              }}
+            >
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Briefcase size={14} color="#38bdf8" />
+                German Anschreiben Structure
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#94a3b8', fontSize: '0.78rem', lineHeight: '1.6' }}>
+                <li><strong>Absender:</strong> Contact information at top right</li>
+                <li><strong>Empfänger:</strong> Company / University address</li>
+                <li><strong>Betreff:</strong> Bold, specific reference line</li>
+                <li><strong>Einleitung:</strong> Strong opening (no generic clichés)</li>
+                <li><strong>Hauptteil:</strong> Match qualifications to target role</li>
+                <li><strong>Schluss:</strong> Earliest start date & salary (if applicable)</li>
+              </ul>
             </div>
           </div>
 
@@ -260,49 +369,62 @@ export const CoverLetterPage: React.FC = () => {
             style={{
               background: '#ffffff',
               color: '#0f172a',
-              padding: '2.5rem',
-              borderRadius: '8px',
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              padding: '3rem 3.25rem',
+              borderRadius: '12px',
+              boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.65)',
+              fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
             }}
           >
-            <div style={{ marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem' }}>
-                {letterTitle || 'Bewerbungsschreiben'}
-              </h2>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                DIN 5008 Konform &bull; Deutsch (Formal)
+            <div style={{ marginBottom: '1.25rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem', letterSpacing: '-0.01em' }}>
+                  {letterTitle || 'Bewerbungsschreiben'}
+                </h2>
+                <div style={{ fontSize: '0.82rem', color: '#2563eb', fontWeight: 600 }}>
+                  DIN 5008 Konform &bull; Deutsch (Formales Anschreiben)
+                </div>
               </div>
+
+              {selectedOpp && (
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Target Institution</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
+                    {selectedOpp.organization}
+                  </div>
+                </div>
+              )}
             </div>
 
             <textarea
-              rows={22}
+              rows={23}
               value={letterContent}
               onChange={(e) => setLetterContent(e.target.value)}
               style={{
                 width: '100%',
                 border: '1px solid #cbd5e1',
-                borderRadius: '6px',
-                padding: '1.25rem',
-                fontSize: '0.88rem',
-                lineHeight: '1.7',
+                borderRadius: '8px',
+                padding: '1.5rem',
+                fontSize: '0.9rem',
+                lineHeight: '1.75',
                 color: '#1e293b',
-                background: '#fafafa',
+                background: '#f8fafc',
                 resize: 'vertical',
                 fontFamily: 'inherit',
+                outline: 'none',
               }}
             />
           </div>
         </div>
       ) : (
-        <div className="card" style={{ textAlign: 'center', padding: '3.5rem 1rem' }}>
-          <FileEdit size={40} color="#3b82f6" style={{ margin: '0 auto 1rem' }} />
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', margin: '0 0 0.5rem' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '4rem 1.5rem', border: '1px dashed rgba(255, 255, 255, 0.15)' }}>
+          <FileEdit size={44} color="#3b82f6" style={{ margin: '0 auto 1.25rem' }} />
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff', margin: '0 0 0.5rem' }}>
             No German Cover Letters Created
           </h2>
-          <p style={{ color: '#94a3b8', fontSize: '0.88rem', maxWidth: '450px', margin: '0 auto 1.5rem' }}>
-            Select an opportunity above and generate a personalized German Anschreiben highlighting your credentials and motivation.
+          <p style={{ color: '#94a3b8', fontSize: '0.9rem', maxWidth: '480px', margin: '0 auto 1.75rem', lineHeight: '1.6' }}>
+            Select an opportunity above and generate a personalized German Anschreiben highlighting your credentials, motivation, and vocational readiness.
           </p>
-          <button onClick={handleGenerate} className="btn btn-primary" style={{ padding: '0.65rem 1.5rem' }}>
+          <button onClick={handleGenerate} className="btn btn-primary" style={{ padding: '0.75rem 1.75rem', fontSize: '0.9rem' }}>
             Generate Cover Letter
           </button>
         </div>

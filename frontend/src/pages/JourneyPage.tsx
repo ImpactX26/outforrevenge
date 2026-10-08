@@ -11,6 +11,13 @@ import {
   Sparkles,
   AlertCircle,
   Compass,
+  FileText,
+  Eye,
+  Award,
+  Layers,
+  FileCheck2,
+  Plane,
+  Check,
 } from 'lucide-react';
 import { Journey, JourneyStep, JourneyStepStatus } from '../types';
 
@@ -18,7 +25,6 @@ export const JourneyPage: React.FC = () => {
   const navigate = useNavigate();
   const [journey, setJourney] = useState<Journey | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const fetchJourney = async () => {
     try {
@@ -42,6 +48,7 @@ export const JourneyPage: React.FC = () => {
     switch (stepCode) {
       case 'INTAKE_COMPLETED':
       case 'INTAKE':
+      case 'PROFILE':
         navigate('/profile');
         break;
       case 'DOCUMENTS_UPLOADED':
@@ -62,9 +69,11 @@ export const JourneyPage: React.FC = () => {
         break;
       case 'EDUCARO_NEXT_STEP':
       case 'NEXT_STEP':
+      case 'RECOMMENDATIONS':
         navigate('/next-step');
         break;
       case 'CV_GENERATED':
+      case 'CV_BUILDER':
       case 'CV':
         navigate('/cv');
         break;
@@ -74,181 +83,259 @@ export const JourneyPage: React.FC = () => {
     }
   };
 
-  const getStepIcon = (status: JourneyStepStatus) => {
-    switch (status) {
-      case 'COMPLETED':
-        return <CheckCircle2 size={22} color="#10b981" />;
-      case 'IN_PROGRESS':
-        return <Clock size={22} color="#3b82f6" />;
-      case 'PENDING':
-        return <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid #64748b' }} />;
-      case 'LOCKED':
-      default:
-        return <Lock size={18} color="#475569" />;
-    }
+  const getStepIcon = (code: string) => {
+    if (code.includes('DOC')) return <FileText size={18} />;
+    if (code.includes('VIDEO')) return <Eye size={18} />;
+    if (code.includes('QUAL')) return <Award size={18} />;
+    if (code.includes('REC') || code.includes('STEP')) return <Layers size={18} />;
+    if (code.includes('CV')) return <FileCheck2 size={18} />;
+    if (code.includes('VISA') || code.includes('SUBMISSION')) return <Plane size={18} />;
+    return <Compass size={18} />;
   };
 
   const getStatusBadge = (status: JourneyStepStatus) => {
     switch (status) {
       case 'COMPLETED':
-        return <span className="badge badge-success">Completed</span>;
+        return (
+          <span
+            style={{
+              padding: '0.2rem 0.6rem',
+              borderRadius: '20px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#34d399',
+            }}
+          >
+            Completed
+          </span>
+        );
       case 'IN_PROGRESS':
-        return <span className="badge badge-primary">Active Now</span>;
+        return (
+          <span
+            style={{
+              padding: '0.2rem 0.6rem',
+              borderRadius: '20px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              background: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              color: '#60a5fa',
+            }}
+          >
+            Active Milestone
+          </span>
+        );
       case 'REQUIRES_REVIEW':
-        return <span className="badge badge-warning">Needs Review</span>;
-      case 'PENDING':
-        return <span className="badge badge-secondary">Pending</span>;
+        return (
+          <span
+            style={{
+              padding: '0.2rem 0.6rem',
+              borderRadius: '20px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              background: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              color: '#fbbf24',
+            }}
+          >
+            Review Pending
+          </span>
+        );
       case 'LOCKED':
       default:
-        return <span className="badge badge-secondary" style={{ opacity: 0.6 }}>Locked</span>;
+        return (
+          <span
+            style={{
+              padding: '0.2rem 0.6rem',
+              borderRadius: '20px',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              background: 'rgba(148, 163, 184, 0.1)',
+              color: '#64748b',
+            }}
+          >
+            Locked
+          </span>
+        );
     }
   };
 
+  const progress = journey?.progressPercentage || 28;
+
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-      {/* Header Banner */}
+    <div style={{ maxWidth: '1080px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      {/* 1. Header Banner */}
       <div
         className="card"
         style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98))',
+          border: '1px solid rgba(59, 130, 246, 0.25)',
+          padding: '1.5rem 1.75rem',
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
           gap: '1.25rem',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-            <Map size={24} color="#60a5fa" />
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-              Your German Relocation Journey
-            </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.4rem' }}>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '12px',
+                background: 'rgba(37, 99, 235, 0.15)',
+                border: '1px solid rgba(37, 99, 235, 0.3)',
+                color: '#60a5fa',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
+              7-STAGE RELOCATION BLUEPRINT
+            </span>
+            <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+              From First Intake to German Arrival
+            </span>
           </div>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>
-            Visualizing your progression from credential intake to German embassy visa packaging and arrival in Deutschland.
+          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#fff', margin: '0 0 0.35rem 0', letterSpacing: '-0.02em' }}>
+            Personalized Relocation Journey
+          </h1>
+          <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0, maxWidth: '640px', lineHeight: 1.55 }}>
+            Each stage locks and unlocks deterministically as your credentials are OCR verified and evaluated against statutory criteria.
           </p>
         </div>
 
-        <div style={{ minWidth: '180px', textAlign: 'right' }}>
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>
-            Overall Progression
+        {/* Progress Gauge */}
+        <div style={{ minWidth: '200px', background: 'rgba(15, 23, 42, 0.7)', padding: '1rem 1.25rem', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.74rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Overall Progress</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#38bdf8' }}>{progress}%</span>
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#38bdf8' }}>
-            {journey?.progressPercentage || 25}%
+          <div className="progress-bar-container" style={{ height: '6px', background: 'rgba(255, 255, 255, 0.08)' }}>
+            <div className="progress-bar-fill" style={{ width: `${progress}%`, background: '#38bdf8' }} />
           </div>
         </div>
       </div>
 
-      {/* Progress Bar Container */}
-      <div className="card" style={{ padding: '1rem 1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.5rem' }}>
-          <span>Current Milestone: <strong>{journey?.currentState?.replace('_', ' ') || 'INTAKE'}</strong></span>
-          <span>{journey?.steps?.filter((s) => s.status === 'COMPLETED').length || 0} of {journey?.steps?.length || 8} Milestones Cleared</span>
+      {/* 2. Chronological Milestones Timeline */}
+      <div
+        className="card"
+        style={{
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          padding: '1.75rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+            Sequential Pathway Progression
+          </h2>
+          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+            7 Core Stages for German Relocation
+          </span>
         </div>
-        <div className="progress-bar-container" style={{ height: '8px' }}>
-          <div
-            className="progress-bar-fill"
-            style={{ width: `${journey?.progressPercentage || 25}%`, background: '#2563eb' }}
-          />
-        </div>
-      </div>
-
-      {/* Journey Timeline */}
-      <div className="card" style={{ padding: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff', marginBottom: '1.5rem' }}>
-          Sequential Milestone Roadmap
-        </h2>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem' }}>
-            <RefreshCw className="animate-spin" size={28} color="#3b82f6" />
+          <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+            <RefreshCw className="animate-spin" size={28} color="#3b82f6" style={{ margin: '0 auto 1rem' }} />
+            <p style={{ color: '#94a3b8', fontSize: '0.88rem' }}>Loading journey milestones...</p>
           </div>
         ) : journey?.steps && journey.steps.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}>
-            {journey.steps.map((step, idx) => {
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {journey.steps.map((step) => {
+              const isCompleted = step.status === 'COMPLETED';
+              const isInProgress = step.status === 'IN_PROGRESS';
               const isLocked = step.status === 'LOCKED';
-              const isCurrent = step.status === 'IN_PROGRESS';
-              const isDone = step.status === 'COMPLETED';
 
               return (
                 <div
-                  key={step.id || idx}
+                  key={step.id}
                   style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '1.25rem',
-                    padding: '1.25rem',
-                    borderRadius: '10px',
-                    background: isCurrent
+                    background: isInProgress
                       ? 'rgba(37, 99, 235, 0.12)'
-                      : isDone
-                      ? 'rgba(16, 185, 129, 0.05)'
-                      : 'rgba(15, 23, 42, 0.4)',
-                    border: '1px solid',
-                    borderColor: isCurrent
-                      ? 'rgba(59, 130, 246, 0.4)'
-                      : isDone
-                      ? 'rgba(16, 185, 129, 0.2)'
-                      : 'var(--border-subtle)',
-                    opacity: isLocked ? 0.6 : 1,
-                    transition: 'all 0.2s',
+                      : isCompleted
+                      ? 'rgba(16, 185, 129, 0.04)'
+                      : 'rgba(30, 41, 59, 0.4)',
+                    border: isInProgress
+                      ? '1px solid rgba(59, 130, 246, 0.4)'
+                      : isCompleted
+                      ? '1px solid rgba(16, 185, 129, 0.25)'
+                      : '1px solid rgba(255, 255, 255, 0.06)',
+                    borderRadius: '12px',
+                    padding: '1.25rem 1.5rem',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    transition: 'all 0.2s ease',
+                    opacity: isLocked ? 0.65 : 1,
                   }}
                 >
-                  {/* Step Order & Icon */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', minWidth: '40px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flex: 1, minWidth: '280px' }}>
+                    {/* Step Icon Badge */}
                     <div
                       style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '50%',
-                        background: isDone
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        background: isInProgress
+                          ? 'rgba(37, 99, 235, 0.2)'
+                          : isCompleted
                           ? 'rgba(16, 185, 129, 0.2)'
-                          : isCurrent
-                          ? 'rgba(37, 99, 235, 0.25)'
                           : 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: isDone ? '#34d399' : isCurrent ? '#60a5fa' : '#64748b',
-                        fontWeight: 700,
-                        fontSize: '0.85rem',
+                        color: isInProgress ? '#60a5fa' : isCompleted ? '#34d399' : '#64748b',
+                        flexShrink: 0,
                       }}
                     >
-                      {step.stepOrder || idx + 1}
+                      {isCompleted ? <Check size={18} /> : getStepIcon(step.code)}
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b' }}>
+                          STAGE {step.stepOrder}
+                        </span>
+                        {getStatusBadge(step.status)}
+                      </div>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: isInProgress ? '#fff' : '#e2e8f0', margin: '0 0 0.35rem 0' }}>
+                        {step.title}
+                      </h3>
+                      <p style={{ color: '#94a3b8', fontSize: '0.84rem', margin: 0, lineHeight: 1.5 }}>
+                        {step.description}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Step Content */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                      <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', margin: 0 }}>
-                        {step.title}
-                      </h3>
-                      <div>{getStatusBadge(step.status)}</div>
-                    </div>
-
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.5' }}>
-                      {step.description}
-                    </p>
-
-                    {/* Step Action Button if unlocked */}
-                    {!isLocked && (
-                      <div style={{ marginTop: '0.75rem' }}>
-                        <button
-                          onClick={() => handleStepAction(step.code)}
-                          className={isCurrent ? 'btn btn-primary' : 'btn btn-secondary'}
-                          style={{
-                            padding: '0.4rem 0.85rem',
-                            fontSize: '0.78rem',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                          }}
-                        >
-                          <span>{isDone ? 'Review Milestone' : 'Work on Milestone'}</span>
-                          <ArrowRight size={14} />
-                        </button>
+                  {/* Action CTA */}
+                  <div>
+                    {!isLocked ? (
+                      <button
+                        onClick={() => handleStepAction(step.code)}
+                        className={isInProgress ? 'btn btn-primary' : 'btn btn-secondary'}
+                        style={{
+                          fontSize: '0.82rem',
+                          padding: '0.55rem 1.15rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        <span>{isCompleted ? 'Review Stage' : 'Proceed'}</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#64748b', fontSize: '0.78rem' }}>
+                        <Lock size={14} />
+                        <span>Prerequisite Pending</span>
                       </div>
                     )}
                   </div>
@@ -257,8 +344,8 @@ export const JourneyPage: React.FC = () => {
             })}
           </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '2rem 0', color: '#94a3b8' }}>
-            No journey steps recorded. Complete profile onboarding to initialize your journey.
+          <div style={{ textAlign: 'center', padding: '2rem 0', color: '#94a3b8', fontSize: '0.88rem' }}>
+            No journey steps generated. Complete your profile intake to begin.
           </div>
         )}
       </div>

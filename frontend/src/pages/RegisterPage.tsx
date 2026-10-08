@@ -34,6 +34,9 @@ export const RegisterPage: React.FC = () => {
     try {
       const res = await sendOtp(email, 'REGISTER');
       setOtpSent(true);
+      if (res?.code) {
+        setOtpCode(res.code);
+      }
       setOtpSuccessInfo(`Verification code sent to your email (${email}). Please check your inbox.`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send verification code');
@@ -61,6 +64,7 @@ export const RegisterPage: React.FC = () => {
           firstName,
           lastName,
           phone,
+          currentGoal,
         });
       } else {
         await register({
@@ -249,7 +253,7 @@ export const RegisterPage: React.FC = () => {
                 type="text"
                 required
                 className="input-dark"
-                placeholder="Aarav"
+                placeholder="First name"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
               />
@@ -262,7 +266,7 @@ export const RegisterPage: React.FC = () => {
                 type="text"
                 required
                 className="input-dark"
-                placeholder="Sharma"
+                placeholder="Last name"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
               />
@@ -301,7 +305,7 @@ export const RegisterPage: React.FC = () => {
                 type="email"
                 required
                 className="input-dark"
-                placeholder="aarav.sharma@example.com"
+                placeholder="your.email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 style={{ flex: 1 }}

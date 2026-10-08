@@ -50,47 +50,7 @@ export class AuthService {
 
       // If applicant, initialize profile and journey
       if (role === UserRole.APPLICANT) {
-        await tx.applicantProfile.create({
-          data: {
-            userId: user.id,
-            currentGoal: dto.currentGoal || GoalType.AUSBILDUNG,
-            phone: dto.phone,
-            profileCompleteness: 20,
-            readinessScore: 15,
-            preferredPathways: dto.currentGoal ? [dto.currentGoal] : [GoalType.AUSBILDUNG],
-          },
-        });
-
-        const journey = await tx.journey.create({
-          data: {
-            applicantId: user.id,
-            currentState: 'ONBOARDING',
-            progressPercentage: 10,
-          },
-        });
-
-        const defaultSteps = [
-          { order: 1, code: 'PROFILE_SETUP', title: 'Complete Profile & Goal', description: 'Personal details and selected Germany pathway.', status: JourneyStepStatus.IN_PROGRESS },
-          { order: 2, code: 'DOCUMENT_UPLOAD', title: 'Upload Academic Documents', description: 'Degrees, transcripts, and credentials.', status: JourneyStepStatus.PENDING },
-          { order: 3, code: 'VIDEO_INTRO', title: 'Record Video Introduction', description: '60-second video overview.', status: JourneyStepStatus.PENDING },
-          { order: 4, code: 'QUALIFICATION_CHECK', title: 'Qualification Assessment', description: 'Systematic requirement verification.', status: JourneyStepStatus.PENDING },
-          { order: 5, code: 'OPPORTUNITY_MATCHING', title: 'Explore Opportunities', description: 'Target Study, Ausbildung or Job positions.', status: JourneyStepStatus.LOCKED },
-          { order: 6, code: 'EDUCARO_NEXT_STEP', title: 'Educaro Next Step', description: 'Recommended services and application guidance.', status: JourneyStepStatus.LOCKED },
-          { order: 7, code: 'CV_GENERATION', title: 'Generate German Format CV', description: 'Professional German standard CV builder.', status: JourneyStepStatus.LOCKED },
-        ];
-
-        for (const step of defaultSteps) {
-          await tx.journeyStep.create({
-            data: {
-              journeyId: journey.id,
-              stepOrder: step.order,
-              code: step.code,
-              title: step.title,
-              description: step.description,
-              status: step.status,
-            },
-          });
-        }
+        await this.initializeApplicantJourney(tx, user.id, dto.currentGoal || GoalType.AUSBILDUNG, dto.phone);
       }
 
       await tx.auditLog.create({
@@ -338,15 +298,8 @@ export class AuthService {
           },
         });
 
-        // Create applicant profile
-        await tx.applicantProfile.create({
-          data: {
-            userId: newUser.id,
-            currentGoal: GoalType.AUSBILDUNG,
-            profileCompleteness: 20,
-            readinessScore: 15,
-          },
-        });
+        // Create applicant profile and journey
+        await this.initializeApplicantJourney(tx, newUser.id, GoalType.AUSBILDUNG);
 
         return newUser;
       });
@@ -385,6 +338,7 @@ export class AuthService {
     lastName?: string;
     role?: UserRole;
     phone?: string;
+    currentGoal?: GoalType;
   }) {
     const cleanEmail = dto.email.toLowerCase().trim();
     const stored = this.otpStore.get(`${cleanEmail}_REGISTER`);
@@ -418,15 +372,7 @@ export class AuthService {
       });
 
       if (role === UserRole.APPLICANT) {
-        await tx.applicantProfile.create({
-          data: {
-            userId: user.id,
-            currentGoal: GoalType.AUSBILDUNG,
-            phone: dto.phone,
-            profileCompleteness: 20,
-            readinessScore: 15,
-          },
-        });
+        await this.initializeApplicantJourney(tx, user.id, dto.currentGoal || GoalType.AUSBILDUNG, dto.phone);
       }
 
       return user;
@@ -526,4 +472,49 @@ export class AuthService {
       expiresIn: 30 * 24 * 3600, // 30 days in seconds
     };
   }
+
+  private async initializeApplicantJourney(tx: any, userId: string, goal: GoalType = GoalType.AUSBILDUNG, phone?: string) {
+    await tx.applicantProfile.create({
+      data: {
+        userId,
+        currentGoal: goal,
+        phone,
+        profileCompleteness: 20,
+        readinessScore: 15,
+        preferredPathways: [goal],
+      },
+    });
+
+    const journey = await tx.journey.create({
+      data: {
+        applicantId: userId,
+        currentState: 'ONBOARDING',
+        progressPercentage: 10,
+      },
+    });
+
+    const defaultSteps = [
+      { order: 1, code: 'PROFILE_SETUP', title: 'Complete Profile & Goal', description: 'Personal details and selected Germany pathway.', status: JourneyStepStatus.IN_PROGRESS },
+      { order: 2, code: 'DOCUMENT_UPLOAD', title: 'Upload Academic Documents', description: 'Degrees, transcripts, and credentials.', status: JourneyStepStatus.PENDING },
+      { order: 3, code: 'VIDEO_INTRO', title: 'Record Video Introduction', description: '60-second video overview.', status: JourneyStepStatus.PENDING },
+      { order: 4, code: 'QUALIFICATION_CHECK', title: 'Qualification Assessment', description: 'Systematic requirement verification.', status: JourneyStepStatus.PENDING },
+      { order: 5, code: 'OPPORTUNITY_MATCHING', title: 'Explore Opportunities', description: 'Target Study, Ausbildung or Job positions.', status: JourneyStepStatus.LOCKED },
+      { order: 6, code: 'EDUCARO_NEXT_STEP', title: 'Educaro Next Step', description: 'Recommended services and application guidance.', status: JourneyStepStatus.LOCKED },
+      { order: 7, code: 'CV_GENERATION', title: 'Generate German Format CV', description: 'Professional German standard CV builder.', status: JourneyStepStatus.LOCKED },
+    ];
+
+    for (const step of defaultSteps) {
+      await tx.journeyStep.create({
+        data: {
+          journeyId: journey.id,
+          stepOrder: step.order,
+          code: step.code,
+          title: step.title,
+          description: step.description,
+          status: step.status,
+        },
+      });
+    }
+  }
 }
+

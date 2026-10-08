@@ -104,6 +104,7 @@ export class AuthController {
       firstName?: string;
       lastName?: string;
       phone?: string;
+      currentGoal?: any;
     },
   ) {
     return this.authService.verifyOtpRegister(dto);

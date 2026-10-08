@@ -10,6 +10,7 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { InterviewsService } from './interviews.service';
+import { UserRole } from '../common/enums';
 
 interface RoomSession {
   activeQuestion?: any;
@@ -21,7 +22,7 @@ interface RoomSession {
 @WebSocketGateway({
   namespace: '/interview',
   cors: {
-    origin: '*',
+    origin: [process.env.FRONTEND_URL || 'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
     credentials: true,
   },
 })
@@ -203,7 +204,7 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('code:run')
   async handleCodeRun(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { roomId: string; challengeId: string; userId: string; language: string; code: string },
+    @MessageBody() data: { roomId: string; challengeId: string; userId: string; language: string; code: string; role?: string },
   ) {
     const roomChannel = `room_${data.roomId}`;
     this.server.to(roomChannel).emit('code:running', { userId: data.userId });
@@ -211,6 +212,7 @@ export class InterviewGateway implements OnGatewayConnection, OnGatewayDisconnec
     const result = await this.interviewsService.runCode(
       data.roomId,
       data.userId,
+      data.role || UserRole.APPLICANT,
       data.challengeId,
       data.language,
       data.code,

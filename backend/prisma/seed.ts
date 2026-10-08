@@ -40,13 +40,17 @@ export async function runSeed() {
   });
   console.log('✓ Demo Consultant ensured: consultant@nexora.de (DEMO DATA)');
 
-  // 3. Seed Demo Applicant (DEMO DATA)
-  let applicant = await prisma.user.findUnique({
-    where: { email: 'applicant@nexora.de' },
-    include: { profile: true },
-  });
+  // 3. Seed Demo Applicant (DEMO ENVIRONMENT ONLY - NEVER RUN IN PRODUCTION WITHOUT EXPLICIT FLAG)
+  const isProduction = process.env.NODE_ENV === 'production';
+  const enableDemoApplicants = process.env.ENABLE_DEMO_SEED === 'true' || !isProduction;
 
-  if (!applicant) {
+  if (enableDemoApplicants) {
+    let applicant = await prisma.user.findUnique({
+      where: { email: 'applicant@nexora.de' },
+      include: { profile: true },
+    });
+
+    if (!applicant) {
     applicant = await prisma.user.create({
       data: {
         email: 'applicant@nexora.de',
@@ -121,6 +125,8 @@ export async function runSeed() {
       include: { profile: true },
     });
     console.log('✓ Demo Applicant created: applicant@nexora.de (DEMO DATA)');
+  } else {
+    console.log('ℹ Production environment: skipped demo applicant creation.');
   }
 
   // 4. Seed Qualification Requirements (DEMO DATA)

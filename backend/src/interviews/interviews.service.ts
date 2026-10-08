@@ -329,6 +329,20 @@ export class InterviewsService {
     applicantId: string,
     answerText: string,
   ) {
+    const room = await this.prisma.interviewRoom.findUnique({
+      where: { id: roomId },
+    });
+
+    if (!room) throw new NotFoundException('Interview room not found');
+
+    if (room.applicantId !== applicantId) {
+      throw new ForbiddenException('Access denied: You cannot submit answers to another candidate\'s interview.');
+    }
+
+    if (room.status === InterviewRoomStatus.CANCELLED || room.status === InterviewRoomStatus.COMPLETED) {
+      throw new BadRequestException('Cannot submit answers to a completed or cancelled interview.');
+    }
+
     const question = await this.prisma.interviewQuestion.findUnique({
       where: { id: questionId },
     });
@@ -370,10 +384,25 @@ export class InterviewsService {
   async runCode(
     roomId: string,
     userId: string,
+    role: string,
     challengeId: string,
     language: string,
     sourceCode: string,
   ) {
+    const room = await this.prisma.interviewRoom.findUnique({
+      where: { id: roomId },
+    });
+
+    if (!room) throw new NotFoundException('Interview room not found');
+
+    if (role === UserRole.APPLICANT && room.applicantId !== userId) {
+      throw new ForbiddenException('Access denied: You cannot run code in an interview belonging to another candidate.');
+    }
+
+    if (room.status === InterviewRoomStatus.CANCELLED || room.status === InterviewRoomStatus.COMPLETED) {
+      throw new BadRequestException('Code execution is disabled for completed or cancelled interviews.');
+    }
+
     const challenge = await this.prisma.codingChallenge.findUnique({
       where: { id: challengeId },
     });
@@ -414,10 +443,25 @@ export class InterviewsService {
   async submitCode(
     roomId: string,
     userId: string,
+    role: string,
     challengeId: string,
     language: string,
     sourceCode: string,
   ) {
+    const room = await this.prisma.interviewRoom.findUnique({
+      where: { id: roomId },
+    });
+
+    if (!room) throw new NotFoundException('Interview room not found');
+
+    if (role === UserRole.APPLICANT && room.applicantId !== userId) {
+      throw new ForbiddenException('Access denied: You cannot submit code for another candidate\'s interview.');
+    }
+
+    if (room.status === InterviewRoomStatus.CANCELLED || room.status === InterviewRoomStatus.COMPLETED) {
+      throw new BadRequestException('Code submission is disabled for completed or cancelled interviews.');
+    }
+
     const challenge = await this.prisma.codingChallenge.findUnique({
       where: { id: challengeId },
     });
@@ -467,8 +511,18 @@ export class InterviewsService {
     };
   }
 
-  async evaluateInterview(roomId: string, userId: string) {
-    this.logger.log(`Evaluating interview room ${roomId}`);
+  async evaluateInterview(roomId: string, userId: string, role: string) {
+    if (role === UserRole.APPLICANT) {
+      throw new ForbiddenException('Candidates are not authorized to trigger interview evaluations.');
+    }
+
+    const room = await this.prisma.interviewRoom.findUnique({
+      where: { id: roomId },
+    });
+
+    if (!room) throw new NotFoundException('Interview room not found');
+
+    this.logger.log(`Evaluating interview room ${roomId} by user ${userId}`);
 
     const result = await this.evaluationAgent.evaluateInterview(roomId);
 
@@ -486,7 +540,17 @@ export class InterviewsService {
     };
   }
 
-  async getScorecard(roomId: string) {
+  async getScorecard(roomId: string, userId: string, role: string) {
+    const room = await this.prisma.interviewRoom.findUnique({
+      where: { id: roomId },
+    });
+
+    if (!room) throw new NotFoundException('Interview room not found');
+
+    if (role === UserRole.APPLICANT) {
+      throw new ForbiddenException('Candidates are not permitted to view internal interview scorecards.');
+    }
+
     const card = await this.prisma.interviewScorecard.findUnique({
       where: { roomId },
       include: { evaluator: { select: { firstName: true, lastName: true, email: true } } },
@@ -495,7 +559,17 @@ export class InterviewsService {
     return card;
   }
 
-  async updateScorecard(roomId: string, evaluatorId: string, data: any) {
+  async updateScorecard(roomId: string, evaluatorId: string, role: string, data: any) {
+    if (role === UserRole.APPLICANT) {
+      throw new ForbiddenException('Candidates are not permitted to update interview scorecards.');
+    }
+
+    const room = await this.prisma.interviewRoom.findUnique({
+      where: { id: roomId },
+    });
+
+    if (!room) throw new NotFoundException('Interview room not found');
+
     const existing = await this.prisma.interviewScorecard.findUnique({
       where: { roomId },
     });

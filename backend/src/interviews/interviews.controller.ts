@@ -6,11 +6,13 @@ import {
   Param,
   Body,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { InterviewsService } from './interviews.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { UserRole } from '../common/enums';
 
 @ApiTags('Interviews')
 @Controller('api/interviews')
@@ -22,6 +24,8 @@ export class InterviewsController {
   @Post()
   @ApiOperation({ summary: 'Schedule/create interview room with structured stages & coding challenges' })
   async createInterview(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @Body() dto: {
       applicationId: string;
       interviewerId?: string;
@@ -30,8 +34,12 @@ export class InterviewsController {
       title?: string;
     },
   ) {
+    if (role === UserRole.APPLICANT) {
+      throw new ForbiddenException('Only consultants or administrators can schedule interview sessions.');
+    }
     return this.interviewsService.createInterview({
       ...dto,
+      interviewerId: dto.interviewerId || userId,
       scheduledAt: new Date(dto.scheduledAt),
     });
   }
@@ -99,11 +107,12 @@ export class InterviewsController {
   async runCode(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @Body('challengeId') challengeId: string,
     @Body('language') language: string,
     @Body('code') code: string,
   ) {
-    return this.interviewsService.runCode(id, userId, challengeId, language, code);
+    return this.interviewsService.runCode(id, userId, role, challengeId, language, code);
   }
 
   @Post(':id/code/submit')
@@ -111,17 +120,22 @@ export class InterviewsController {
   async submitCode(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @Body('challengeId') challengeId: string,
     @Body('language') language: string,
     @Body('code') code: string,
   ) {
-    return this.interviewsService.submitCode(id, userId, challengeId, language, code);
+    return this.interviewsService.submitCode(id, userId, role, challengeId, language, code);
   }
 
   @Get(':id/scorecard')
   @ApiOperation({ summary: 'Get scorecard for interview' })
-  async getScorecard(@Param('id') id: string) {
-    const scorecard = await this.interviewsService.getScorecard(id);
+  async getScorecard(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const scorecard = await this.interviewsService.getScorecard(id, userId, role);
     return { success: true, scorecard };
   }
 
@@ -130,9 +144,10 @@ export class InterviewsController {
   async updateScorecard(
     @Param('id') id: string,
     @CurrentUser('id') evaluatorId: string,
+    @CurrentUser('role') role: string,
     @Body() dto: any,
   ) {
-    const updated = await this.interviewsService.updateScorecard(id, evaluatorId, dto);
+    const updated = await this.interviewsService.updateScorecard(id, evaluatorId, role, dto);
     return { success: true, scorecard: updated };
   }
 
@@ -141,7 +156,8 @@ export class InterviewsController {
   async evaluateInterview(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    return this.interviewsService.evaluateInterview(id, userId);
+    return this.interviewsService.evaluateInterview(id, userId, role);
   }
 }

@@ -176,21 +176,25 @@ Strict Notice: The AI recommendation is advisory. The human hiring manager / con
         confidence: res.execution?.confidence || 0.9,
       };
     } catch (err: any) {
-      this.logger.warn(`AI interview evaluation fallback: ${err.message}`);
+      this.logger.error(`AI interview evaluation failed: ${err.message}. Queuing for human consultant review.`);
+      const passedCodingCount = codingResults.filter((c) => c.passed).length;
+      const totalCodingCount = codingResults.length;
+      const codingPercentage = totalCodingCount > 0 ? Math.round((passedCodingCount / totalCodingCount) * 100) : 0;
+
       return {
-        technicalScore: 78,
-        problemSolvingScore: 80,
-        communicationScore: 82,
-        roleAlignmentScore: 85,
-        codingScore: 75,
-        languageScore: 80,
-        overallScore: 80,
-        strengths: ['Demonstrated clear domain knowledge', 'Systematic problem breakdown'],
-        weaknesses: ['Could expand on automated test coverage strategies'],
-        evidence: ['Completed core coding task and answered role-specific questions'],
+        technicalScore: codingPercentage,
+        problemSolvingScore: codingPercentage,
+        communicationScore: 0,
+        roleAlignmentScore: 0,
+        codingScore: codingPercentage,
+        languageScore: 0,
+        overallScore: codingPercentage,
+        strengths: passedCodingCount > 0 ? [`Passed ${passedCodingCount}/${totalCodingCount} technical coding challenges.`] : [],
+        weaknesses: ['Automated AI evaluation failed. Manual evaluation by consultant required.'],
+        evidence: codingResults.map((c) => `${c.challenge}: ${c.status} (Passed: ${c.passed})`),
         recommendation: EvaluationRecommendation.HUMAN_REVIEW,
-        advisoryNotes: 'Solid performance across key criteria. Consultant review advised before final offer.',
-        confidence: 0.85,
+        advisoryNotes: `AI evaluation provider was unavailable (${err.message}). Scorecard routed to assigned interviewer for manual human evaluation.`,
+        confidence: 0.5,
       };
     }
   }

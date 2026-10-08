@@ -147,6 +147,7 @@ describe('InterviewsService (WebRTC, AI Live Copilot & Technical Assessment)', (
     mockPrisma.interviewRoom.findUnique.mockResolvedValue({
       id: 'room-1',
       applicantId: 'applicant-1',
+      status: 'SCHEDULED',
       participants: [{ userId: 'applicant-1' }],
     });
     mockPrisma.codingChallenge.findUnique.mockResolvedValue({
@@ -158,8 +159,46 @@ describe('InterviewsService (WebRTC, AI Live Copilot & Technical Assessment)', (
       id: 'exec-1',
     });
 
-    const result = await service.runCode('room-1', 'applicant-1', 'chal-1', 'javascript', 'console.log("hello")');
+    const result = await service.runCode('room-1', 'applicant-1', UserRole.APPLICANT, 'chal-1', 'javascript', 'console.log("hello")');
     expect(result.stdout).toBe('Test passed\n');
     expect(mockCodeExecutionService.executeCode).toHaveBeenCalled();
+  });
+
+  it('CRITICAL: applicant cannot execute code in another applicant\'s room', async () => {
+    mockPrisma.interviewRoom.findUnique.mockResolvedValue({
+      id: 'room-1',
+      applicantId: 'applicant-1',
+      status: 'SCHEDULED',
+    });
+
+    await expect(
+      service.runCode('room-1', 'intruder-applicant', UserRole.APPLICANT, 'chal-1', 'javascript', 'console.log("hack")'),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('CRITICAL: applicant cannot access internal interview scorecard', async () => {
+    mockPrisma.interviewRoom.findUnique.mockResolvedValue({
+      id: 'room-1',
+      applicantId: 'applicant-1',
+    });
+
+    await expect(
+      service.getScorecard('room-1', 'applicant-1', UserRole.APPLICANT),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('consultant can access interview scorecard', async () => {
+    mockPrisma.interviewRoom.findUnique.mockResolvedValue({
+      id: 'room-1',
+      applicantId: 'applicant-1',
+    });
+    mockPrisma.interviewScorecard.findUnique.mockResolvedValue({
+      id: 'sc-1',
+      roomId: 'room-1',
+      technicalScore: 85,
+    });
+
+    const card = await service.getScorecard('room-1', 'consultant-1', UserRole.CONSULTANT);
+    expect(card?.technicalScore).toBe(85);
   });
 });

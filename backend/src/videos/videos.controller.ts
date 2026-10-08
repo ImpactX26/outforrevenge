@@ -110,4 +110,17 @@ export class VideosController {
   ) {
     return this.videosService.approveAnalysis(videoId, applicantId);
   }
+
+  @Post(':id/retry')
+  @ApiOperation({ summary: 'Retry speech-to-text and AI analysis for failed video' })
+  async retry(
+    @CurrentUser('id') applicantId: string,
+    @Param('id') videoId: string,
+  ) {
+    const analysis = await this.videosService.analyzeVideo(videoId, applicantId);
+    return {
+      success: true,
+      analysis,
+    };
+  }
 }

@@ -73,19 +73,24 @@ async function bootstrap() {
     }),
   );
 
-  // CORS whitelist
-  const allowedOrigins = [
+  // Strict CORS whitelist
+  const configuredOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+    : [];
+  const defaultOrigins = [
     process.env.FRONTEND_URL || 'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
   ];
+  const allowedOrigins = Array.from(new Set([...defaultOrigins, ...configuredOrigins].filter(Boolean)));
 
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(null, true); // Dev flexible origin
+        logger.warn(`CORS blocked unauthorized origin: ${origin}`);
+        callback(new Error(`Origin '${origin}' not allowed by CORS policy.`), false);
       }
     },
     credentials: true,

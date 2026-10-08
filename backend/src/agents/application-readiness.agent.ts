@@ -114,9 +114,9 @@ Analyze application readiness strictly according to German pathway standards. Ne
       const finalMissing = Array.from(new Set([...missingItems, ...(aiData.missingItems || [])]));
       const finalWarnings = Array.from(new Set([...warnings, ...(aiData.warnings || [])]));
 
-      let score = aiData.readinessScore || 70;
+      let score = typeof aiData.readinessScore === 'number' ? aiData.readinessScore : 50;
       if (finalMissing.length > 0) {
-        score = Math.min(score, Math.max(20, 100 - (finalMissing.length * 20)));
+        score = Math.min(score, Math.max(10, 100 - (finalMissing.length * 25)));
       }
 
       return {
@@ -124,22 +124,23 @@ Analyze application readiness strictly according to German pathway standards. Ne
         ready: score >= 75 && finalMissing.length === 0,
         missingItems: finalMissing,
         warnings: finalWarnings,
-        matchedRequirements: aiData.matchedRequirements || ['Academic background aligned with German criteria'],
-        unsupportedClaims: aiData.unsupportedClaims || [],
-        recommendations: aiData.recommendations || ['Complete missing document verifications prior to submission.'],
+        matchedRequirements: Array.isArray(aiData.matchedRequirements) ? aiData.matchedRequirements : [],
+        unsupportedClaims: Array.isArray(aiData.unsupportedClaims) ? aiData.unsupportedClaims : [],
+        recommendations: Array.isArray(aiData.recommendations) ? aiData.recommendations : [],
         confidence: res.execution?.confidence || 0.88,
       };
-    } catch (err) {
-      const score = Math.max(30, 100 - (missingItems.length * 25));
+    } catch (err: any) {
+      this.logger.warn(`AI readiness agent failed: ${err.message}. Computing deterministic evidence state.`);
+      const deterministicScore = Math.max(0, 100 - (missingItems.length * 25));
       return {
-        readinessScore: score,
-        ready: score >= 75 && missingItems.length === 0,
+        readinessScore: deterministicScore,
+        ready: false,
         missingItems,
-        warnings,
-        matchedRequirements: ['Basic profile submitted'],
+        warnings: [...warnings, 'AI evaluation provider unavailable; readiness computed from deterministic criteria.'],
+        matchedRequirements: [],
         unsupportedClaims: [],
-        recommendations: ['Upload verified language certificates and official academic transcripts.'],
-        confidence: 0.8,
+        recommendations: missingItems.map((m) => `Satisfy requirement: ${m}`),
+        confidence: 0.6,
       };
     }
   }

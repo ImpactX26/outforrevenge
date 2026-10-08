@@ -42,6 +42,18 @@ process.on('unhandledRejection', (reason: any) => {
   console.error('Unhandled Rejection:', reason);
 });
 
+process.on('exit', (code) => {
+  console.log(`[PROCESS EXIT] Nexora backend process exiting with code: ${code}`);
+});
+
+process.on('SIGTERM', () => {
+  console.log('[PROCESS SIGNAL] Received SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  console.log('[PROCESS SIGNAL] Received SIGINT');
+});
+
 async function bootstrap() {
   const logger = new Logger('NexoraBootstrap');
 

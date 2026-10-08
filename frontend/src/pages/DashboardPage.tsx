@@ -43,16 +43,20 @@ export const DashboardPage: React.FC = () => {
   const [assessment, setAssessment] = useState<QualificationAssessment | null>(null);
   const [opportunityMatches, setOpportunityMatches] = useState<OpportunityMatch[]>([]);
   const [journey, setJourney] = useState<Journey | null>(null);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [interviews, setInterviews] = useState<any[]>([]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [profileRes, nextStepRes, qualRes, oppRes, journeyRes] = await Promise.allSettled([
+      const [profileRes, nextStepRes, qualRes, oppRes, journeyRes, appsRes, interviewsRes] = await Promise.allSettled([
         apiClient.get('/applicant/profile'),
         apiClient.get('/recommendations/next-step'),
         apiClient.get('/qualification/latest'),
         apiClient.get('/opportunities/matches'),
         apiClient.get('/journey'),
+        apiClient.get('/applications'),
+        apiClient.get('/interviews'),
       ]);
 
       if (profileRes.status === 'fulfilled' && profileRes.value.data.success) {
@@ -69,6 +73,12 @@ export const DashboardPage: React.FC = () => {
       }
       if (journeyRes.status === 'fulfilled' && journeyRes.value.data.success) {
         setJourney(journeyRes.value.data.journey);
+      }
+      if (appsRes.status === 'fulfilled' && appsRes.value.data.success) {
+        setApplications(appsRes.value.data.applications || []);
+      }
+      if (interviewsRes.status === 'fulfilled' && interviewsRes.value.data.success) {
+        setInterviews(interviewsRes.value.data.interviews || []);
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -853,17 +863,13 @@ export const DashboardPage: React.FC = () => {
           </Link>
 
           <Link
-            to={assessment?.status === 'QUALIFIED' ? '/interview' : '/qualification'}
+            to="/opportunities?tab=interviews"
             className="card"
             style={{
               textDecoration: 'none',
               padding: '1.35rem',
-              background: assessment?.status === 'QUALIFIED'
-                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(15, 23, 42, 0.85))'
-                : 'rgba(15, 23, 42, 0.75)',
-              border: assessment?.status === 'QUALIFIED'
-                ? '1px solid rgba(16, 185, 129, 0.35)'
-                : '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
               display: 'flex',
               gap: '1rem',
               alignItems: 'flex-start',
@@ -875,44 +881,164 @@ export const DashboardPage: React.FC = () => {
                 width: '40px',
                 height: '40px',
                 borderRadius: '10px',
-                background: assessment?.status === 'QUALIFIED' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                background: 'rgba(16, 185, 129, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: assessment?.status === 'QUALIFIED' ? '#34d399' : '#fbbf24',
+                color: '#34d399',
                 flexShrink: 0,
               }}
             >
-              {assessment?.status === 'QUALIFIED' ? <Video size={20} /> : <Lock size={20} />}
+              <Video size={20} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>Live Video Interview Studio</span>
-                <span
-                  style={{
-                    fontSize: '0.62rem',
-                    padding: '0.1rem 0.4rem',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    background: assessment?.status === 'QUALIFIED' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                    color: assessment?.status === 'QUALIFIED' ? '#34d399' : '#fbbf24',
-                    border: assessment?.status === 'QUALIFIED' ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)',
-                  }}
-                >
-                  {assessment?.status === 'QUALIFIED' ? 'UNLOCKED' : 'QUALIFICATION REQUIRED'}
-                </span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>Official Opportunity Interviews</span>
+                {interviews.length > 0 && (
+                  <span
+                    style={{
+                      fontSize: '0.62rem',
+                      padding: '0.1rem 0.4rem',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      background: 'rgba(16, 185, 129, 0.2)',
+                      color: '#34d399',
+                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                    }}
+                  >
+                    {interviews.length} ACTIVE
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
-                {assessment?.status === 'QUALIFIED'
-                  ? 'Rehearse real-time German questions with Dr. Elena Weber, with live speech dictation, scoring, and clearance dossier.'
-                  : 'Unlocked strictly when your candidate profile achieves QUALIFIED status under German statutory regulations.'}
+                Opportunity-specific German employer and vocational interviews scheduled through your applications, featuring live WebRTC and coding sandboxes.
               </div>
             </div>
           </Link>
         </div>
       </div>
 
-      {/* 6. Matched German Opportunities Preview */}
+      {/* 6. Active Applications & Scheduled Interviews Pipeline */}
+      <div
+        className="card"
+        style={{
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(59, 130, 246, 0.25)',
+          padding: '1.5rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+              <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: 'rgba(37, 99, 235, 0.15)', color: '#60a5fa', fontWeight: 700 }}>
+                APPLICATION & INTERVIEW PIPELINE
+              </span>
+            </div>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+              My Applications & Scheduled Interviews
+            </h2>
+          </div>
+          <button
+            onClick={() => navigate('/opportunities?tab=interviews')}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', color: '#60a5fa' }}
+          >
+            Manage Opportunity Interviews &rarr;
+          </button>
+        </div>
+
+        {applications.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+            {applications.map((app) => {
+              const opp = app.opportunity;
+              const room = app.interviewRooms?.[0] || interviews.find((i) => i.applicationId === app.id);
+              const invitation = room?.invitations?.[0] || app.invitations?.[0];
+
+              return (
+                <div
+                  key={app.id}
+                  style={{
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    padding: '1.1rem',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '0.85rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                        {opp?.title || 'German Position'}
+                      </h4>
+                      <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', fontWeight: 600 }}>
+                        {app.status}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                      {opp?.organization} • {opp?.location || 'Germany'}
+                    </div>
+
+                    {room ? (
+                      <div style={{ marginTop: '0.65rem', padding: '0.6rem', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', fontSize: '0.76rem', color: '#34d399', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Video size={13} />
+                          <span>Interview: {room.scheduledAt ? new Date(room.scheduledAt).toLocaleString() : 'Scheduled'}</span>
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                          Status: {room.status} (Europe/Berlin)
+                        </div>
+                      </div>
+                    ) : invitation ? (
+                      <div style={{ marginTop: '0.65rem', padding: '0.6rem', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.76rem', color: '#fbbf24' }}>
+                        Invitation Received: {new Date(invitation.proposedTime).toLocaleString()}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: '0.65rem', fontSize: '0.76rem', color: '#64748b' }}>
+                        {opp?.type === 'STUDY' ? 'Direct academic admission dossier' : 'Interview scheduling opens upon dossier review'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '0.65rem' }}>
+                    {room?.status === 'SCHEDULED' || room?.status === 'LIVE' ? (
+                      <button
+                        onClick={() => navigate(`/interviews/${room.id}`)}
+                        className="btn btn-primary"
+                        style={{ fontSize: '0.74rem', padding: '0.35rem 0.75rem', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        <Video size={13} />
+                        <span>Join Room</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => navigate('/opportunities?tab=interviews')}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.74rem', padding: '0.35rem 0.75rem' }}
+                      >
+                        View in Opportunities
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '1.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '0 0 0.85rem 0' }}>
+              No active applications yet. Browse matched German opportunities to prepare your dossier and receive interview invitations.
+            </p>
+            <button onClick={() => navigate('/opportunities')} className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.45rem 1rem' }}>
+              Browse German Opportunities &rarr;
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 7. Matched German Opportunities Preview */}
       <div
         className="card"
         style={{

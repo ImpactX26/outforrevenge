@@ -188,11 +188,7 @@ export const App: React.FC = () => {
         />
         <Route
           path="/interview"
-          element={
-            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
-              <InterviewPrepPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/opportunities?tab=interviews" replace />}
         />
         <Route
           path="/assistant"

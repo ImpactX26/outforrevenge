@@ -82,8 +82,9 @@ export class InterviewsService {
         },
       });
 
-      for (let j = 0; j < st.questions.length; j++) {
-        const q = st.questions[j];
+      const questions = st.questions || [];
+      for (let j = 0; j < questions.length; j++) {
+        const q = questions[j];
         await this.prisma.interviewQuestion.create({
           data: {
             roomId: room.id,
@@ -158,6 +159,144 @@ export class InterviewsService {
     };
   }
 
+  async requestInterviewSchedule(
+    applicationId: string,
+    applicantId: string,
+    dto: {
+      preferredDate: Date;
+      timezone?: string;
+      notes?: string;
+    },
+  ) {
+    const app = await this.prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { opportunity: true },
+    });
+
+    if (!app) {
+      throw new NotFoundException('Application not found');
+    }
+
+    if (app.applicantId !== applicantId) {
+      throw new ForbiddenException('You can only request interview scheduling for your own applications.');
+    }
+
+    if (app.status === ApplicationStatus.DRAFT) {
+      throw new BadRequestException('Application must be confirmed and submitted before scheduling an interview.');
+    }
+
+    // Plan interview if not planned yet
+    const plan = await this.planningAgent.planInterview(app.opportunityId, applicantId);
+
+    let room = await this.prisma.interviewRoom.findFirst({
+      where: { applicationId: app.id },
+    });
+
+    if (!room) {
+      room = await this.prisma.interviewRoom.create({
+        data: {
+          applicationId: app.id,
+          applicantId: app.applicantId,
+          title: `Interview - ${app.opportunity.title}`,
+          scheduledAt: dto.preferredDate,
+          durationMinutes: 45,
+          status: InterviewRoomStatus.SCHEDULED,
+          interviewPlan: plan as any,
+        },
+      });
+
+      for (let i = 0; i < plan.stages.length; i++) {
+        const st = plan.stages[i];
+        const stage = await this.prisma.interviewStage.create({
+          data: {
+            roomId: room.id,
+            stageType: st.stageType,
+            orderIndex: i,
+            status: 'PENDING',
+          },
+        });
+
+        const questions = st.questions || [];
+        for (let j = 0; j < questions.length; j++) {
+          const q = questions[j];
+          await this.prisma.interviewQuestion.create({
+            data: {
+              roomId: room.id,
+              stageId: stage.id,
+              orderIndex: j,
+              questionText: q.text,
+              competency: q.competency,
+              difficulty: q.difficulty,
+              expectedConcepts: q.expectedKeyPoints,
+            },
+          });
+        }
+      }
+
+      if (plan.technicalAssessmentRequired) {
+        const techPlan = await this.technicalAgent.generateAssessment(app.opportunityId, applicantId);
+        const assess = await this.prisma.technicalAssessment.create({
+          data: {
+            roomId: room.id,
+            title: techPlan.title,
+            description: techPlan.description,
+            roleSeniority: 'MID',
+            requiredSkills: [techPlan.roleDomain],
+            rubric: techPlan.challenges[0]?.rubric as any,
+          },
+        });
+
+        for (const ch of techPlan.challenges) {
+          await this.prisma.codingChallenge.create({
+            data: {
+              assessmentId: assess.id,
+              title: ch.title,
+              problemStatement: ch.description,
+              language: ch.language,
+              starterCode: ch.starterCode,
+              testCases: ch.testCases as any,
+              difficulty: 'MID',
+            },
+          });
+        }
+      }
+    } else {
+      await this.prisma.interviewRoom.update({
+        where: { id: room.id },
+        data: {
+          scheduledAt: dto.preferredDate,
+          status: InterviewRoomStatus.SCHEDULED,
+        },
+      });
+    }
+
+    const invitation = await this.prisma.interviewInvitation.create({
+      data: {
+        roomId: room.id,
+        applicationId: app.id,
+        applicantId,
+        interviewerId: applicantId,
+        proposedTime: dto.preferredDate,
+        durationMinutes: 45,
+        timezone: dto.timezone || 'Europe/Berlin',
+        status: InvitationStatus.ACCEPTED,
+        notes: dto.notes,
+      },
+    });
+
+    await this.prisma.jobApplication.update({
+      where: { id: app.id },
+      data: { status: ApplicationStatus.INTERVIEW_INVITED },
+    });
+
+    return {
+      success: true,
+      message: 'Interview successfully scheduled for this opportunity.',
+      roomId: room.id,
+      invitation,
+    };
+  }
+
   async listInterviews(userId: string, role: string) {
     if (role === UserRole.ADMIN || role === UserRole.CONSULTANT) {
       return this.prisma.interviewRoom.findMany({
@@ -166,6 +305,7 @@ export class InterviewsService {
           applicant: { select: { id: true, firstName: true, lastName: true, email: true } },
           interviewer: { select: { id: true, firstName: true, lastName: true, email: true } },
           scorecard: true,
+          invitations: true,
         },
         orderBy: { scheduledAt: 'asc' },
       });
@@ -177,6 +317,7 @@ export class InterviewsService {
         application: { include: { opportunity: true } },
         interviewer: { select: { id: true, firstName: true, lastName: true, email: true } },
         scorecard: true,
+        invitations: true,
       },
       orderBy: { scheduledAt: 'asc' },
     });

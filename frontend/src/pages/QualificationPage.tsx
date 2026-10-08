@@ -15,7 +15,7 @@ import {
   GraduationCap,
   Scale,
   ExternalLink,
-  Video,
+  Briefcase,
 } from 'lucide-react';
 import { QualificationAssessment, QualificationStatus } from '../types';
 
@@ -514,13 +514,13 @@ export const QualificationPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
                   <GraduationCap size={20} color={assessment.status === 'QUALIFIED' ? '#34d399' : '#fbbf24'} />
                   <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-                    German University Option & Live Interview Privileges
+                    Statutory Pathway Clearance: German Higher Education & Dual Vocational Opportunities
                   </h3>
                 </div>
                 <p style={{ color: '#cbd5e1', fontSize: '0.85rem', margin: 0, maxWidth: '780px', lineHeight: 1.55 }}>
                   {assessment.status === 'QUALIFIED'
-                    ? 'Under German KMK higher education regulations and the Skilled Immigration Act (FEG), your verified credentials grant direct German University Study eligibility (Hochschulzugang für beruflich Qualifizierte) and live video interview clearance.'
-                    : 'German University Study options and live recruiter video interviews are unlocked strictly upon achieving verified QUALIFIED status. Satisfy remaining language and transcript requirements to unlock.'}
+                    ? 'Under German KMK higher education regulations and the Skilled Immigration Act (FEG), your verified credentials grant direct German University Study eligibility and opportunity application clearance across verified German partner institutions.'
+                    : 'German University Study options and dual vocational training applications are unlocked strictly upon achieving verified QUALIFIED status. Satisfy remaining language and transcript requirements to unlock.'}
                 </p>
               </div>
 
@@ -583,7 +583,7 @@ export const QualificationPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Video Interview Box */}
+              {/* Dual Vocational & Skilled Pathway Box */}
               <div
                 style={{
                   background: 'rgba(15, 23, 42, 0.65)',
@@ -598,24 +598,24 @@ export const QualificationPage: React.FC = () => {
               >
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                    <Video size={16} color={assessment.status === 'QUALIFIED' ? '#34d399' : '#64748b'} />
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>Live Video Interview Studio</span>
+                    <Briefcase size={16} color="#34d399" />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>Dual Vocational & Skilled Opportunities</span>
                   </div>
                   <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
                     {assessment.status === 'QUALIFIED'
-                      ? 'Simulate authentic German consular & corporate interviews with Dr. Elena Weber and receive instant AI grading.'
-                      : 'Interview studio access is restricted to applicants who have passed statutory qualification assessment.'}
+                      ? 'Clearance granted to browse dual Ausbildung programs and employer opportunities, prepare official application packages, and receive interview invitations.'
+                      : 'Dual vocational training and skilled employment options require verified qualification evaluation.'}
                   </p>
                 </div>
                 <div>
                   {assessment.status === 'QUALIFIED' ? (
                     <button
-                      onClick={() => navigate('/interview')}
+                      onClick={() => navigate('/opportunities')}
                       className="btn btn-primary"
                       style={{ fontSize: '0.8rem', padding: '0.45rem 1rem', width: '100%', boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.39)' }}
                     >
-                      <Video size={14} />
-                      <span>Start Live Video Interview</span>
+                      <Briefcase size={14} />
+                      <span>Browse German Opportunities</span>
                     </button>
                   ) : (
                     <div style={{ fontSize: '0.74rem', color: '#64748b', fontStyle: 'italic' }}>

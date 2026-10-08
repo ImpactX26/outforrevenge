@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InterviewsService } from './interviews.service';
 import { UserRole } from '../common/enums';
 
@@ -16,12 +16,27 @@ describe('InterviewsService (WebRTC, AI Live Copilot & Technical Assessment)', (
     mockPrisma = {
       interviewRoom: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         findMany: jest.fn(),
       },
       interviewParticipant: {
         findUnique: jest.fn(),
+        create: jest.fn(),
+      },
+      interviewInvitation: {
+        create: jest.fn(),
+        update: jest.fn(),
+        findUnique: jest.fn(),
+      },
+      interviewStage: {
+        create: jest.fn(),
+      },
+      interviewQuestion: {
+        create: jest.fn(),
+      },
+      technicalAssessment: {
         create: jest.fn(),
       },
       interviewScorecard: {
@@ -200,5 +215,87 @@ describe('InterviewsService (WebRTC, AI Live Copilot & Technical Assessment)', (
 
     const card = await service.getScorecard('room-1', 'consultant-1', UserRole.CONSULTANT);
     expect(card?.technicalScore).toBe(85);
+  });
+
+  describe('Opportunity-Linked Interview Scheduling (Adaptive Pathways)', () => {
+    it('applicant can request and schedule an interview for their submitted application', async () => {
+      mockPrisma.jobApplication.findUnique.mockResolvedValue({
+        id: 'app-1',
+        applicantId: 'applicant-1',
+        opportunityId: 'opp-1',
+        status: 'SUBMITTED',
+        opportunity: { id: 'opp-1', title: 'Fullstack Dev at Siemens', type: 'EMPLOYMENT' },
+      });
+      mockPrisma.interviewRoom.findFirst.mockResolvedValue(null);
+      mockPrisma.interviewRoom.create.mockResolvedValue({
+        id: 'room-new',
+        applicationId: 'app-1',
+        applicantId: 'applicant-1',
+        status: 'SCHEDULED',
+      });
+      mockPrisma.interviewStage.create.mockResolvedValue({ id: 'stage-1' });
+      mockPrisma.interviewQuestion.create.mockResolvedValue({ id: 'q-1' });
+      mockPrisma.interviewInvitation.create.mockResolvedValue({
+        id: 'inv-1',
+        roomId: 'room-new',
+        applicationId: 'app-1',
+        applicantId: 'applicant-1',
+        proposedTime: new Date('2026-10-15T10:00:00Z'),
+        status: 'ACCEPTED',
+      });
+      mockPrisma.jobApplication.update.mockResolvedValue({ id: 'app-1', status: 'INTERVIEW_INVITED' });
+
+      const result = await service.requestInterviewSchedule('app-1', 'applicant-1', {
+        preferredDate: new Date('2026-10-15T10:00:00Z'),
+        timezone: 'Europe/Berlin',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.roomId).toBe('room-new');
+      expect(mockPrisma.interviewInvitation.create).toHaveBeenCalled();
+      expect(mockPrisma.jobApplication.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'INTERVIEW_INVITED' } }),
+      );
+    });
+
+    it('applicant cannot schedule an interview for another applicant\'s application', async () => {
+      mockPrisma.jobApplication.findUnique.mockResolvedValue({
+        id: 'app-1',
+        applicantId: 'applicant-1',
+        status: 'SUBMITTED',
+        opportunity: { id: 'opp-1', title: 'Tech Job' },
+      });
+
+      await expect(
+        service.requestInterviewSchedule('app-1', 'intruder-applicant', {
+          preferredDate: new Date('2026-10-15T10:00:00Z'),
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('applicant cannot schedule interview if application is still in DRAFT status', async () => {
+      mockPrisma.jobApplication.findUnique.mockResolvedValue({
+        id: 'app-1',
+        applicantId: 'applicant-1',
+        status: 'DRAFT',
+        opportunity: { id: 'opp-1', title: 'Tech Job' },
+      });
+
+      await expect(
+        service.requestInterviewSchedule('app-1', 'applicant-1', {
+          preferredDate: new Date('2026-10-15T10:00:00Z'),
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('requesting interview for non-existent application throws NotFoundException', async () => {
+      mockPrisma.jobApplication.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.requestInterviewSchedule('app-missing', 'applicant-1', {
+          preferredDate: new Date('2026-10-15T10:00:00Z'),
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 });

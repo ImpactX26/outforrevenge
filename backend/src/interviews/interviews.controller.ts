@@ -44,6 +44,24 @@ export class InterviewsController {
     });
   }
 
+  @Post('schedule-request')
+  @ApiOperation({ summary: 'Applicant schedules interview for their submitted application' })
+  async requestInterview(
+    @CurrentUser('id') applicantId: string,
+    @Body() dto: {
+      applicationId: string;
+      preferredDate: string;
+      timezone?: string;
+      notes?: string;
+    },
+  ) {
+    return this.interviewsService.requestInterviewSchedule(dto.applicationId, applicantId, {
+      preferredDate: new Date(dto.preferredDate),
+      timezone: dto.timezone,
+      notes: dto.notes,
+    });
+  }
+
   @Get()
   @ApiOperation({ summary: 'List scheduled interviews for current user (or all if consultant/admin)' })
   async listInterviews(

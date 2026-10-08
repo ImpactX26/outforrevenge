@@ -46,7 +46,6 @@ export const DashboardLayout: React.FC = () => {
     { name: 'My Journey', path: '/journey', icon: Map },
     { name: 'CV Builder', path: '/cv', icon: FileCheck2 },
     { name: 'Cover Letter', path: '/cover-letter', icon: FileEdit },
-    { name: 'Live Video Interview', path: '/interview', icon: Video },
     { name: 'Notifications', path: '/notifications', icon: Bell },
   ];
 

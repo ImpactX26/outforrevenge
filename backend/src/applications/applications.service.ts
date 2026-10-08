@@ -30,7 +30,10 @@ export class ApplicationsService {
           },
           cv: true,
           coverLetter: true,
-          interviewRooms: true,
+          interviewRooms: {
+            include: { invitations: true, scorecard: true },
+          },
+          invitations: true,
         },
         orderBy: { updatedAt: 'desc' },
       });
@@ -42,7 +45,10 @@ export class ApplicationsService {
         opportunity: true,
         cv: true,
         coverLetter: true,
-        interviewRooms: true,
+        interviewRooms: {
+          include: { invitations: true, scorecard: true },
+        },
+        invitations: true,
       },
       orderBy: { updatedAt: 'desc' },
     });

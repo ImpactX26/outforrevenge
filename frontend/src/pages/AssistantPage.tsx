@@ -13,6 +13,8 @@ import {
   Cpu,
 } from 'lucide-react';
 import { AgentExecution } from '../types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatMessage {
   id: string;
@@ -197,7 +199,8 @@ export const AssistantPage: React.FC = () => {
                     display: 'flex',
                     gap: '0.75rem',
                     alignSelf: isUser ? 'flex-end' : 'flex-start',
-                    maxWidth: '82%',
+                    maxWidth: isUser ? '80%' : '92%',
+                    width: isUser ? 'auto' : '100%',
                   }}
                 >
                   {!isUser && (
@@ -212,28 +215,46 @@ export const AssistantPage: React.FC = () => {
                         justifyContent: 'center',
                         color: '#60a5fa',
                         flexShrink: 0,
+                        marginTop: '4px',
                       }}
                     >
                       <Bot size={18} />
                     </div>
                   )}
 
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        padding: '0.85rem 1.1rem',
-                        borderRadius: '12px',
-                        background: isUser ? '#2563eb' : 'rgba(30, 41, 59, 0.8)',
+                        padding: '0.95rem 1.25rem',
+                        borderRadius: '14px',
+                        background: isUser ? '#2563eb' : 'rgba(15, 23, 42, 0.85)',
                         border: isUser ? 'none' : '1px solid var(--border-subtle)',
                         color: '#fff',
-                        fontSize: '0.88rem',
-                        lineHeight: '1.5',
-                        whiteSpace: 'pre-wrap',
+                        fontSize: '0.9rem',
+                        lineHeight: '1.6',
+                        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
                       }}
                     >
-                      {m.content}
+                      {isUser ? (
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
+                      ) : (
+                        <div className="markdown-content">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              table: ({ node, ...props }) => (
+                                <div className="markdown-table-wrapper">
+                                  <table {...props} />
+                                </div>
+                              ),
+                            }}
+                          >
+                            {m.content}
+                          </ReactMarkdown>
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem', textAlign: isUser ? 'right' : 'left' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.35rem', textAlign: isUser ? 'right' : 'left' }}>
                       {m.timestamp}
                     </div>
                   </div>

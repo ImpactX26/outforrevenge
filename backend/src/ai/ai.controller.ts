@@ -5,6 +5,8 @@ import {
   Body,
   UseGuards,
   Query,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AiService } from './ai.service';
@@ -19,6 +21,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 export class AiController {
   constructor(
     private readonly aiService: AiService,
+    @Inject(forwardRef(() => OrchestratorService))
     private readonly orchestratorService: OrchestratorService,
   ) {}
 

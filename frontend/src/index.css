@@ -248,16 +248,18 @@ h1, h2, h3, h4, h5, h6 {
   animation: pulseGlow 3s infinite ease-in-out;
 }
 
-/* ChatGPT-Style Markdown Typography & Table Rendering */
+/* ==========================================================================
+   ChatGPT-Style Markdown Typography, Tables & Message Aesthetics
+   ========================================================================== */
 .markdown-content {
   color: #e2e8f0;
-  font-size: 0.92rem;
-  line-height: 1.65;
+  font-size: 0.95rem;
+  line-height: 1.7;
   word-break: break-word;
 }
 
 .markdown-content p {
-  margin-bottom: 0.85rem;
+  margin-bottom: 1rem;
 }
 
 .markdown-content p:last-child {
@@ -267,126 +269,148 @@ h1, h2, h3, h4, h5, h6 {
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3,
-.markdown-content h4 {
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
   color: #ffffff;
   font-weight: 700;
-  margin-top: 1.25rem;
-  margin-bottom: 0.65rem;
+  line-height: 1.35;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .markdown-content h1 {
-  font-size: 1.35rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 0.35rem;
+  font-size: 1.4rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 0.4rem;
 }
 
 .markdown-content h2 {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.35rem;
 }
 
 .markdown-content h3 {
-  font-size: 1.05rem;
+  font-size: 1.12rem;
+  color: #f1f5f9;
 }
 
 .markdown-content h4 {
-  font-size: 0.95rem;
-  color: #38bdf8;
+  font-size: 1rem;
+  color: #60a5fa;
 }
 
 .markdown-content strong {
   color: #ffffff;
-  font-weight: 700;
+  font-weight: 600;
+}
+
+.markdown-content em {
+  color: #cbd5e1;
 }
 
 .markdown-content ul,
 .markdown-content ol {
-  margin: 0.6rem 0 0.85rem 1.4rem;
+  margin: 0.75rem 0 1rem 1.5rem;
   padding: 0;
 }
 
 .markdown-content li {
-  margin-bottom: 0.35rem;
-  line-height: 1.6;
+  margin-bottom: 0.45rem;
+  line-height: 1.65;
+  color: #cbd5e1;
 }
 
 .markdown-content li::marker {
-  color: #38bdf8;
+  color: #60a5fa;
 }
 
 .markdown-content hr {
   border: 0;
   height: 1px;
   background: rgba(255, 255, 255, 0.12);
-  margin: 1.25rem 0;
+  margin: 1.5rem 0;
 }
 
 .markdown-content blockquote {
   border-left: 3px solid #3b82f6;
-  padding: 0.5rem 0.85rem;
-  margin: 0.85rem 0;
+  padding: 0.6rem 1rem;
+  margin: 1rem 0;
   color: #94a3b8;
   font-style: italic;
-  background: rgba(30, 41, 59, 0.3);
-  border-radius: 0 6px 6px 0;
+  background: rgba(30, 41, 59, 0.4);
+  border-radius: 0 8px 8px 0;
 }
 
 .markdown-content code {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(30, 41, 59, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 0.15rem 0.35rem;
-  border-radius: 4px;
+  padding: 0.18rem 0.45rem;
+  border-radius: 5px;
   font-size: 0.85em;
   color: #38bdf8;
 }
 
 .markdown-content pre {
-  background: #0b1120;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #090d16;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
-  padding: 0.85rem 1rem;
+  padding: 1rem;
   overflow-x: auto;
-  margin: 0.85rem 0;
+  margin: 1rem 0;
 }
 
 .markdown-content pre code {
   background: transparent;
   border: none;
   padding: 0;
-  color: #e2e8f0;
+  color: #f1f5f9;
 }
 
 /* ChatGPT Table Rendering */
 .markdown-table-wrapper {
   width: 100%;
   overflow-x: auto;
-  margin: 1rem 0;
+  margin: 1.25rem 0;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.85);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 .markdown-content table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   text-align: left;
 }
 
 .markdown-content th {
-  background: rgba(30, 41, 59, 0.85);
-  color: #f1f5f9;
+  background: rgba(30, 41, 59, 0.95);
+  color: #f8fafc;
   font-weight: 600;
-  padding: 0.65rem 0.85rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-  white-space: nowrap;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.markdown-content th:last-child {
+  border-right: none;
 }
 
 .markdown-content td {
-  padding: 0.6rem 0.85rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
   color: #cbd5e1;
   vertical-align: top;
+  line-height: 1.6;
+}
+
+.markdown-content td:last-child {
+  border-right: none;
 }
 
 .markdown-content tr:last-child td {
@@ -395,6 +419,10 @@ h1, h2, h3, h4, h5, h6 {
 
 .markdown-content tr:nth-child(even) td {
   background: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-content tr:hover td {
+  background: rgba(59, 130, 246, 0.05);
 }
 
 .markdown-content a {
@@ -406,4 +434,24 @@ h1, h2, h3, h4, h5, h6 {
 .markdown-content a:hover {
   color: #60a5fa;
 }
+
+/* Typing Dots Animation */
+@keyframes chatBlink {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1.1); }
+}
+
+.chat-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #60a5fa;
+  animation: chatBlink 1.4s infinite ease-in-out both;
+}
+
+.chat-dot:nth-child(1) { animation-delay: -0.32s; }
+.chat-dot:nth-child(2) { animation-delay: -0.16s; }
+.chat-dot:nth-child(3) { animation-delay: 0s; }
+
 

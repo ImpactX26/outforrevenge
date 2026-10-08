@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { UserRole } from './types';
 import DashboardLayout from './layouts/DashboardLayout';
 
 // Public Pages
@@ -29,9 +30,14 @@ import NotificationsPage from './pages/NotificationsPage';
 import ConsultantDashboardPage from './pages/ConsultantDashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 
-// Protected Route Guard
-const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+// Protected Route Guard with Strict RBAC
+interface ProtectedRouteProps {
+  children: React.ReactElement;
+  allowedRoles?: UserRole[];
+}
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
+  const { user, isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
@@ -41,8 +47,15 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    // Redirect unauthorized user to their respective home dashboard
+    if (user.role === 'ADMIN') return <Navigate to="/admin" replace />;
+    if (user.role === 'CONSULTANT') return <Navigate to="/consultant" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
@@ -57,7 +70,7 @@ export const App: React.FC = () => {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-      {/* Protected Pages (Inside DashboardLayout) */}
+      {/* Protected Root Layout */}
       <Route
         element={
           <ProtectedRoute>
@@ -65,36 +78,219 @@ export const App: React.FC = () => {
           </ProtectedRoute>
         }
       >
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/documents" element={<DocumentsPage />} />
-        <Route path="/video" element={<VideoPage />} />
-        <Route path="/qualification" element={<QualificationPage />} />
-        <Route path="/opportunities" element={<OpportunitiesPage />} />
-        <Route path="/next-step" element={<NextStepPage />} />
-        <Route path="/journey" element={<JourneyPage />} />
-        <Route path="/cv" element={<CvBuilderPage />} />
-        <Route path="/cover-letter" element={<CoverLetterPage />} />
-        <Route path="/interview" element={<InterviewPrepPage />} />
-        <Route path="/assistant" element={<AssistantPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
+        {/* Applicant Portal (APPLICANT, ADMIN) */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <OnboardingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/documents"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <DocumentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/video"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <VideoPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualification"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <QualificationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/opportunities"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <OpportunitiesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/next-step"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <NextStepPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/journey"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <JourneyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cv"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <CvBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cover-letter"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <CoverLetterPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/interview"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <InterviewPrepPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assistant"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <AssistantPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Consultant Portal */}
-        <Route path="/consultant" element={<ConsultantDashboardPage />} />
-        <Route path="/consultant/applicants" element={<ConsultantDashboardPage />} />
-        <Route path="/consultant/reviews" element={<ConsultantDashboardPage />} />
+        {/* Consultant Portal (CONSULTANT, ADMIN) */}
+        <Route
+          path="/consultant"
+          element={
+            <ProtectedRoute allowedRoles={['CONSULTANT', 'ADMIN']}>
+              <ConsultantDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/consultant/applicants"
+          element={
+            <ProtectedRoute allowedRoles={['CONSULTANT', 'ADMIN']}>
+              <ConsultantDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/consultant/reviews"
+          element={
+            <ProtectedRoute allowedRoles={['CONSULTANT', 'ADMIN']}>
+              <ConsultantDashboardPage />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Admin Portal */}
-        <Route path="/admin" element={<AdminDashboardPage />} />
-        <Route path="/admin/users" element={<AdminDashboardPage />} />
-        <Route path="/admin/opportunities" element={<AdminDashboardPage />} />
-        <Route path="/admin/requirements" element={<AdminDashboardPage />} />
-        <Route path="/admin/services" element={<AdminDashboardPage />} />
-        <Route path="/admin/routing-rules" element={<AdminDashboardPage />} />
-        <Route path="/admin/agents" element={<AdminDashboardPage />} />
-        <Route path="/admin/analytics" element={<AdminDashboardPage />} />
-        <Route path="/admin/audit-logs" element={<AdminDashboardPage />} />
+        {/* Admin Portal (ADMIN strictly) */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/opportunities"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/requirements"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/services"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/routing-rules"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/agents"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/analytics"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/audit-logs"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
       </Route>
 
       {/* Catch-all */}

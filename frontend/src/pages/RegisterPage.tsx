@@ -34,8 +34,7 @@ export const RegisterPage: React.FC = () => {
     try {
       const res = await sendOtp(email, 'REGISTER');
       setOtpSent(true);
-      const devHint = res.code ? ` (Code: ${res.code})` : '';
-      setOtpSuccessInfo(`Verification code sent to ${email}${devHint}`);
+      setOtpSuccessInfo(`Verification code sent to your email (${email}). Please check your inbox.`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send verification code');
     } finally {

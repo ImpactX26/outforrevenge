@@ -49,8 +49,7 @@ export const LoginPage: React.FC = () => {
     try {
       const res = await sendOtp(email, 'LOGIN');
       setOtpSent(true);
-      const devHint = res.code ? ` (Dev Code: ${res.code})` : '';
-      setSuccessInfo(`Verification code sent to ${email}${devHint}`);
+      setSuccessInfo(`Verification code sent to your email (${email}). Please check your inbox.`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send verification code. Please try again.');
     } finally {

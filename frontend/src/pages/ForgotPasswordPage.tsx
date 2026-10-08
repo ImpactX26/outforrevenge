@@ -24,13 +24,12 @@ export const ForgotPasswordPage: React.FC = () => {
     setError(null);
     setSendingOtp(true);
     try {
-      const res = await apiClient.post('/auth/otp/send', {
+      await apiClient.post('/auth/otp/send', {
         email,
         purpose: 'FORGOT_PASSWORD',
       });
       setOtpSent(true);
-      const devHint = res.data.code ? ` (Dev Code: ${res.data.code})` : '';
-      setSuccessInfo(`Recovery code sent to ${email}${devHint}`);
+      setSuccessInfo(`Recovery code sent to your email (${email}). Please check your inbox.`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send recovery code. Please check your email.');
     } finally {

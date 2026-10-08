@@ -21,6 +21,7 @@ import { OrchestratorModule } from './agents/orchestrator/orchestrator.module';
 import { ConsultantModule } from './consultant/consultant.module';
 import { AdminModule } from './admin/admin.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ConsultantModule,
     AdminModule,
     NotificationsModule,
+    MailModule,
   ],
   controllers: [HealthController],
 })

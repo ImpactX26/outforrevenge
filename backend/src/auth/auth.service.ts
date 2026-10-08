@@ -19,6 +19,7 @@ import { AuditLog } from '../database/entities/audit-log.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UserRole, GoalType, JourneyStepStatus } from '../common/enums';
+import { MailService, LoginMetadata } from '../mail/mail.service';
 
 @Injectable()
 export class AuthService {
@@ -37,6 +38,7 @@ export class AuthService {
     @InjectRepository(AuditLog)
     private readonly auditLogRepository: Repository<AuditLog>,
     private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -117,6 +119,11 @@ export class AuthService {
       }),
     );
 
+    // Dispatch welcome email via Gmail SMTP
+    this.mailService.sendRegistrationSuccessEmail(savedUser.email, savedUser.firstName).catch((err) => {
+      this.logger.warn(`Failed to dispatch registration welcome email to ${savedUser.email}: ${err.message}`);
+    });
+
     return {
       success: true,
       user: {
@@ -130,11 +137,11 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, meta?: LoginMetadata) {
     const user = await this.userRepository
       .createQueryBuilder('user')
       .addSelect('user.passwordHash')
-      .where('user.email = :email', { email: dto.email.toLowerCase() })
+      .where('user.email = :email', { email: dto.email.toLowerCase().trim() })
       .getOne();
 
     if (!user) {
@@ -160,6 +167,11 @@ export class AuthService {
         entityId: user.id,
       }),
     );
+
+    // Dispatch security login alert email via Gmail SMTP
+    this.mailService.sendLoginSuccessEmail(user.email, user.firstName, meta).catch((err) => {
+      this.logger.warn(`Failed to dispatch login alert email to ${user.email}: ${err.message}`);
+    });
 
     return {
       success: true,
@@ -279,7 +291,7 @@ export class AuthService {
 
   private readonly otpStore = new Map<string, { code: string; expiresAt: Date; purpose: string }>();
 
-  async sendOtp(email: string, purpose = 'LOGIN') {
+  async sendOtp(email: string, purpose: 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD' = 'LOGIN') {
     const cleanEmail = email.toLowerCase().trim();
     // Generate secure 6-digit OTP code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -287,6 +299,9 @@ export class AuthService {
 
     this.otpStore.set(`${cleanEmail}_${purpose}`, { code, expiresAt, purpose });
     this.logger.log(`[Nexora Auth] Generated ${purpose} OTP for ${cleanEmail}: ${code}`);
+
+    // Dispatch real email via Gmail SMTP
+    await this.mailService.sendOtpEmail(cleanEmail, code, purpose);
 
     return {
       success: true,
@@ -297,7 +312,7 @@ export class AuthService {
     };
   }
 
-  async verifyOtpLogin(email: string, code: string) {
+  async verifyOtpLogin(email: string, code: string, meta?: LoginMetadata) {
     const cleanEmail = email.toLowerCase().trim();
     const stored = this.otpStore.get(`${cleanEmail}_LOGIN`);
 
@@ -329,9 +344,19 @@ export class AuthService {
         readinessScore: 15,
       });
       await this.profileRepository.save(profile);
+
+      // Send registration welcome email
+      this.mailService.sendRegistrationSuccessEmail(user.email, user.firstName).catch((err) => {
+        this.logger.warn(`Failed to dispatch registration welcome email: ${err.message}`);
+      });
     }
 
     const tokens = await this.generateTokens(user);
+
+    // Dispatch security login alert email via Gmail SMTP
+    this.mailService.sendLoginSuccessEmail(user.email, user.firstName, meta).catch((err) => {
+      this.logger.warn(`Failed to dispatch login alert email to ${user.email}: ${err.message}`);
+    });
 
     return {
       success: true,
@@ -397,6 +422,11 @@ export class AuthService {
 
     const tokens = await this.generateTokens(savedUser);
 
+    // Dispatch welcome email via Gmail SMTP
+    this.mailService.sendRegistrationSuccessEmail(savedUser.email, savedUser.firstName).catch((err) => {
+      this.logger.warn(`Failed to dispatch registration welcome email: ${err.message}`);
+    });
+
     return {
       success: true,
       user: {
@@ -430,6 +460,11 @@ export class AuthService {
 
     // Revoke all existing sessions
     await this.refreshTokenRepository.update({ userId: user.id }, { isRevoked: true });
+
+    // Dispatch password reset confirmation email via Gmail SMTP
+    this.mailService.sendPasswordResetSuccessEmail(user.email, user.firstName).catch((err) => {
+      this.logger.warn(`Failed to dispatch password reset confirmation email: ${err.message}`);
+    });
 
     return {
       success: true,

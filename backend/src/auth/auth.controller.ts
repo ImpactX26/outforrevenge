@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -31,8 +32,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({ status: 200, description: 'Login successful with token pair' })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Req() req: any) {
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip;
+    const userAgent = req.headers['user-agent'] || 'Web Browser';
+    return this.authService.login(dto, { ip, userAgent, timestamp: new Date() });
   }
 
   @Post('refresh')
@@ -83,8 +86,11 @@ export class AuthController {
   async verifyOtpLogin(
     @Body('email') email: string,
     @Body('code') code: string,
+    @Req() req: any,
   ) {
-    return this.authService.verifyOtpLogin(email, code);
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip;
+    const userAgent = req.headers['user-agent'] || 'Web Browser';
+    return this.authService.verifyOtpLogin(email, code, { ip, userAgent, timestamp: new Date() });
   }
 
   @Post('otp/register')

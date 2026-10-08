@@ -1,60 +1,56 @@
 import {
   Injectable,
+  Inject,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { CoverLetter } from '../database/entities/cover-letter.entity';
-import { Opportunity } from '../database/entities/opportunity.entity';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
-import { User } from '../database/entities/user.entity';
-import { AuditLog } from '../database/entities/audit-log.entity';
-import { LocalStorageService } from '../storage/local-storage.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { IStorageService, STORAGE_SERVICE_TOKEN } from '../storage/storage.interface';
 import { AiService } from '../ai/ai.service';
 
 @Injectable()
 export class CoverLettersService {
   constructor(
-    @InjectRepository(CoverLetter)
-    private readonly coverLetterRepo: Repository<CoverLetter>,
-    @InjectRepository(Opportunity)
-    private readonly oppRepo: Repository<Opportunity>,
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-    @InjectRepository(AuditLog)
-    private readonly auditRepo: Repository<AuditLog>,
-    private readonly storageService: LocalStorageService,
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE_TOKEN)
+    private readonly storageService: IStorageService,
     private readonly aiService: AiService,
   ) {}
 
-  async generateCoverLetter(applicantId: string, opportunityId?: string): Promise<CoverLetter> {
-    const user = await this.userRepo.findOne({ where: { id: applicantId } });
+  async generateCoverLetter(applicantId: string, opportunityId?: string): Promise<any> {
+    const user = await this.prisma.user.findUnique({ where: { id: applicantId } });
     if (!user) throw new NotFoundException('User not found');
 
-    const profile = await this.profileRepo.findOne({
+    const profile = await this.prisma.applicantProfile.findUnique({
       where: { userId: applicantId },
-      relations: ['educations', 'employments', 'skills', 'languages'],
+      include: {
+        educations: true,
+        employments: true,
+        skills: true,
+        languages: true,
+      },
     });
 
-    let opportunity: Opportunity | null = null;
+    let opportunity: any | null = null;
     if (opportunityId) {
-      opportunity = await this.oppRepo.findOne({ where: { id: opportunityId } });
+      opportunity = await this.prisma.opportunity.findUnique({ where: { id: opportunityId } });
     }
+
+    const eduInfo = profile?.educations?.[0]
+      ? `${profile.educations[0].degree} from ${profile.educations[0].institution}`
+      : 'Degree on file';
 
     const prompt = `Applicant: ${user.firstName} ${user.lastName}
 Goal: ${profile?.currentGoal}
 Opportunity: ${opportunity ? `${opportunity.title} at ${opportunity.organization} in ${opportunity.location}` : 'General German Apprenticeship / Study Application'}
-Education: ${profile?.educations?.[0]?.degree || 'Bachelor Degree'} from ${profile?.educations?.[0]?.institution || 'University'}
-Skills: ${profile?.skills?.map((s) => s.name).join(', ')}
-Languages: ${profile?.languages?.map((l) => `${l.language} (${l.proficiencyLevel})`).join(', ')}
+Education: ${eduInfo}
+Skills: ${profile?.skills?.map((s) => s.name).join(', ') || 'Technical and practical skills'}
+Languages: ${profile?.languages?.map((l) => `${l.language} (${l.proficiencyLevel})`).join(', ') || 'English, German'}
 Motivation: ${profile?.rawMotivation || 'Deep commitment to German dual training and engineering precision.'}
 
 Compose a professional German Anschreiben (Cover Letter) formatted according to DIN 5008 standards. Do not fabricate unverified claims.`;
 
-    const { data } = await this.aiService.runAgentStructured<any>(
+    const aiResponse = await this.aiService.runAgentStructured<any>(
       'COVER_LETTER',
       applicantId,
       prompt,
@@ -64,51 +60,59 @@ Compose a professional German Anschreiben (Cover Letter) formatted according to 
       ? `Bewerbung - ${opportunity.title} (${opportunity.organization})`
       : `Bewerbung um einen Ausbildungsplatz / Studienplatz`;
 
-    const coverLetter = this.coverLetterRepo.create({
-      applicantId,
-      opportunityId: opportunity?.id,
-      title,
-      content: data?.content || 'Sehr geehrte Damen und Herren,\n\nhiermit bewerbe ich mich um die ausgeschriebene Stelle...',
-      isAiGenerated: true,
-      version: 1,
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const coverLetter = await tx.coverLetter.create({
+        data: {
+          applicantId,
+          opportunityId: opportunity?.id,
+          title,
+          content: aiResponse?.data?.content || 'Sehr geehrte Damen und Herren,\n\nhiermit bewerbe ich mich um die ausgeschriebene Stelle...',
+          isAiGenerated: true,
+          version: 1,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: applicantId,
+          action: 'COVER_LETTER_GENERATION',
+          entityType: 'COVER_LETTER',
+          entityId: coverLetter.id,
+        },
+      });
+
+      return coverLetter;
     });
-
-    const saved = await this.coverLetterRepo.save(coverLetter);
-
-    await this.auditRepo.save(
-      this.auditRepo.create({
-        userId: applicantId,
-        action: 'COVER_LETTER_GENERATION',
-        entityType: 'COVER_LETTER',
-        entityId: saved.id,
-      }),
-    );
 
     return saved;
   }
 
-  async getCoverLetters(applicantId: string): Promise<CoverLetter[]> {
-    return this.coverLetterRepo.find({
+  async getCoverLetters(applicantId: string): Promise<any[]> {
+    return this.prisma.coverLetter.findMany({
       where: { applicantId },
-      relations: ['opportunity'],
-      order: { createdAt: 'DESC' },
+      include: { opportunity: true },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
-  async getCoverLetterById(id: string, applicantId: string): Promise<CoverLetter> {
-    const cl = await this.coverLetterRepo.findOne({
+  async getCoverLetterById(id: string, applicantId: string): Promise<any> {
+    const cl = await this.prisma.coverLetter.findUnique({
       where: { id },
-      relations: ['opportunity'],
+      include: { opportunity: true },
     });
     if (!cl) throw new NotFoundException('Cover letter not found');
     if (cl.applicantId !== applicantId) throw new ForbiddenException('Unauthorized access');
     return cl;
   }
 
-  async updateCoverLetter(id: string, applicantId: string, content: string, title?: string): Promise<CoverLetter> {
+  async updateCoverLetter(id: string, applicantId: string, content: string, title?: string): Promise<any> {
     const cl = await this.getCoverLetterById(id, applicantId);
-    cl.content = content;
-    if (title) cl.title = title;
-    return this.coverLetterRepo.save(cl);
+    return this.prisma.coverLetter.update({
+      where: { id: cl.id },
+      data: {
+        content,
+        title: title || cl.title,
+      },
+    });
   }
 }

@@ -1,159 +1,176 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ConsultantReview } from '../database/entities/consultant-review.entity';
-import { User } from '../database/entities/user.entity';
-import { Notification } from '../database/entities/notification.entity';
-import { AuditLog } from '../database/entities/audit-log.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { ReviewStatus, UserRole } from '../common/enums';
 
 @Injectable()
 export class ConsultantService {
-  constructor(
-    @InjectRepository(ConsultantReview)
-    private readonly reviewRepo: Repository<ConsultantReview>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-    @InjectRepository(Notification)
-    private readonly notifRepo: Repository<Notification>,
-    @InjectRepository(AuditLog)
-    private readonly auditRepo: Repository<AuditLog>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAssignedApplicants(consultantId: string) {
-    return this.userRepo.find({
+    return this.prisma.user.findMany({
       where: { role: UserRole.APPLICANT },
-      relations: ['profile', 'profile.educations', 'profile.languages', 'assessments', 'recommendations'],
-      order: { createdAt: 'DESC' },
+      include: {
+        profile: {
+          include: {
+            educations: true,
+            languages: true,
+          },
+        },
+        assessments: {
+          orderBy: { evaluatedAt: 'desc' },
+          take: 1,
+        },
+        recommendations: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async getReviews(status?: ReviewStatus) {
-    const query = this.reviewRepo.createQueryBuilder('rev')
-      .leftJoinAndSelect('rev.applicant', 'applicant')
-      .leftJoinAndSelect('applicant.profile', 'profile')
-      .orderBy('rev.createdAt', 'DESC');
-
-    if (status) {
-      query.where('rev.status = :status', { status });
-    }
-
-    return query.getMany();
+    return this.prisma.consultantReview.findMany({
+      where: status ? { status } : undefined,
+      include: {
+        applicant: {
+          include: {
+            profile: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async approveReview(
     reviewId: string,
     consultantId: string,
     notes?: string,
-  ): Promise<ConsultantReview> {
-    const review = await this.reviewRepo.findOne({
+  ): Promise<any> {
+    const review = await this.prisma.consultantReview.findUnique({
       where: { id: reviewId },
-      relations: ['applicant'],
+      include: { applicant: true },
     });
 
     if (!review) throw new NotFoundException('Review not found');
 
-    review.status = ReviewStatus.APPROVED;
-    review.consultantId = consultantId;
-    review.consultantNotes = notes || review.consultantNotes;
-    review.resolution = 'Verified and approved by human Educaro consultant.';
-    review.resolvedAt = new Date();
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.consultantReview.update({
+        where: { id: reviewId },
+        data: {
+          status: ReviewStatus.APPROVED,
+          consultantId,
+          consultantNotes: notes || review.consultantNotes,
+          resolution: 'Verified and approved by human Educaro consultant.',
+          resolvedAt: new Date(),
+        },
+      });
 
-    const saved = await this.reviewRepo.save(review);
+      // Notify applicant
+      await tx.notification.create({
+        data: {
+          userId: review.applicantId,
+          title: 'Consultant Review Approved',
+          message: 'An Educaro consultant has reviewed and approved your dossier for consular submission.',
+          type: 'SUCCESS',
+        },
+      });
 
-    // Notify applicant
-    await this.notifRepo.save(
-      this.notifRepo.create({
-        userId: review.applicantId,
-        title: 'Consultant Review Approved',
-        message: 'An Educaro consultant has reviewed and approved your dossier for consular submission.',
-        type: 'SUCCESS',
-      }),
-    );
+      await tx.auditLog.create({
+        data: {
+          userId: consultantId,
+          action: 'CONSULTANT_ACTION',
+          entityType: 'CONSULTANT_REVIEW',
+          entityId: review.id,
+          details: { action: 'APPROVE', notes },
+        },
+      });
 
-    await this.auditRepo.save(
-      this.auditRepo.create({
-        userId: consultantId,
-        action: 'CONSULTANT_ACTION',
-        entityType: 'CONSULTANT_REVIEW',
-        entityId: review.id,
-        details: { action: 'APPROVE', notes },
-      }),
-    );
-
-    return saved;
+      return updated;
+    });
   }
 
   async rejectReview(
     reviewId: string,
     consultantId: string,
     reason: string,
-  ): Promise<ConsultantReview> {
-    const review = await this.reviewRepo.findOne({ where: { id: reviewId } });
+  ): Promise<any> {
+    const review = await this.prisma.consultantReview.findUnique({ where: { id: reviewId } });
     if (!review) throw new NotFoundException('Review not found');
 
-    review.status = ReviewStatus.REJECTED;
-    review.consultantId = consultantId;
-    review.resolution = reason;
-    review.resolvedAt = new Date();
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.consultantReview.update({
+        where: { id: reviewId },
+        data: {
+          status: ReviewStatus.REJECTED,
+          consultantId,
+          resolution: reason,
+          resolvedAt: new Date(),
+        },
+      });
 
-    const saved = await this.reviewRepo.save(review);
+      await tx.notification.create({
+        data: {
+          userId: review.applicantId,
+          title: 'Review Notice from Advisor',
+          message: `Your dossier requires adjustments: ${reason}`,
+          type: 'WARNING',
+        },
+      });
 
-    await this.notifRepo.save(
-      this.notifRepo.create({
-        userId: review.applicantId,
-        title: 'Review Notice from Advisor',
-        message: `Your dossier requires adjustments: ${reason}`,
-        type: 'WARNING',
-      }),
-    );
+      await tx.auditLog.create({
+        data: {
+          userId: consultantId,
+          action: 'CONSULTANT_ACTION',
+          entityType: 'CONSULTANT_REVIEW',
+          entityId: review.id,
+          details: { action: 'REJECT', reason },
+        },
+      });
 
-    await this.auditRepo.save(
-      this.auditRepo.create({
-        userId: consultantId,
-        action: 'CONSULTANT_ACTION',
-        entityType: 'CONSULTANT_REVIEW',
-        entityId: review.id,
-        details: { action: 'REJECT', reason },
-      }),
-    );
-
-    return saved;
+      return updated;
+    });
   }
 
   async requestClarification(
     reviewId: string,
     consultantId: string,
     clarificationPrompt: string,
-  ): Promise<ConsultantReview> {
-    const review = await this.reviewRepo.findOne({ where: { id: reviewId } });
+  ): Promise<any> {
+    const review = await this.prisma.consultantReview.findUnique({ where: { id: reviewId } });
     if (!review) throw new NotFoundException('Review not found');
 
-    review.status = ReviewStatus.CLARIFICATION_REQUESTED;
-    review.consultantId = consultantId;
-    review.consultantNotes = clarificationPrompt;
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.consultantReview.update({
+        where: { id: reviewId },
+        data: {
+          status: ReviewStatus.CLARIFICATION_REQUESTED,
+          consultantId,
+          consultantNotes: clarificationPrompt,
+        },
+      });
 
-    const saved = await this.reviewRepo.save(review);
+      await tx.notification.create({
+        data: {
+          userId: review.applicantId,
+          title: 'Clarification Requested by Educaro Consultant',
+          message: clarificationPrompt,
+          type: 'ACTION_REQUIRED',
+        },
+      });
 
-    await this.notifRepo.save(
-      this.notifRepo.create({
-        userId: review.applicantId,
-        title: 'Clarification Requested by Educaro Consultant',
-        message: clarificationPrompt,
-        type: 'ACTION_REQUIRED',
-      }),
-    );
+      await tx.auditLog.create({
+        data: {
+          userId: consultantId,
+          action: 'CONSULTANT_ACTION',
+          entityType: 'CONSULTANT_REVIEW',
+          entityId: review.id,
+          details: { action: 'REQUEST_CLARIFICATION', clarificationPrompt },
+        },
+      });
 
-    await this.auditRepo.save(
-      this.auditRepo.create({
-        userId: consultantId,
-        action: 'CONSULTANT_ACTION',
-        entityType: 'CONSULTANT_REVIEW',
-        entityId: review.id,
-        details: { action: 'REQUEST_CLARIFICATION', clarificationPrompt },
-      }),
-    );
-
-    return saved;
+      return updated;
+    });
   }
 }

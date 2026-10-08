@@ -6,16 +6,9 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { User } from '../database/entities/user.entity';
-import { RefreshToken } from '../database/entities/refresh-token.entity';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
-import { Journey } from '../database/entities/journey.entity';
-import { JourneyStep } from '../database/entities/journey-step.entity';
-import { AuditLog } from '../database/entities/audit-log.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UserRole, GoalType, JourneyStepStatus } from '../common/enums';
@@ -24,25 +17,15 @@ import { MailService, LoginMetadata } from '../mail/mail.service';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    @InjectRepository(RefreshToken)
-    private readonly refreshTokenRepository: Repository<RefreshToken>,
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepository: Repository<ApplicantProfile>,
-    @InjectRepository(Journey)
-    private readonly journeyRepository: Repository<Journey>,
-    @InjectRepository(JourneyStep)
-    private readonly journeyStepRepository: Repository<JourneyStep>,
-    @InjectRepository(AuditLog)
-    private readonly auditLogRepository: Repository<AuditLog>,
+    private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.userRepository.findOne({
+    const existing = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
     if (existing) {
@@ -52,72 +35,78 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     const role = dto.role || UserRole.APPLICANT;
 
-    const user = this.userRepository.create({
-      email: dto.email.toLowerCase(),
-      passwordHash: hashedPassword,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      role,
-      phone: dto.phone,
-      isActive: true,
+    const savedUser = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: dto.email.toLowerCase(),
+          passwordHash: hashedPassword,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          role,
+          phone: dto.phone,
+          isActive: true,
+        },
+      });
+
+      // If applicant, initialize profile and journey
+      if (role === UserRole.APPLICANT) {
+        await tx.applicantProfile.create({
+          data: {
+            userId: user.id,
+            currentGoal: dto.currentGoal || GoalType.AUSBILDUNG,
+            phone: dto.phone,
+            profileCompleteness: 20,
+            readinessScore: 15,
+            preferredPathways: dto.currentGoal ? [dto.currentGoal] : [GoalType.AUSBILDUNG],
+          },
+        });
+
+        const journey = await tx.journey.create({
+          data: {
+            applicantId: user.id,
+            currentState: 'ONBOARDING',
+            progressPercentage: 10,
+          },
+        });
+
+        const defaultSteps = [
+          { order: 1, code: 'PROFILE_SETUP', title: 'Complete Profile & Goal', description: 'Personal details and selected Germany pathway.', status: JourneyStepStatus.IN_PROGRESS },
+          { order: 2, code: 'DOCUMENT_UPLOAD', title: 'Upload Academic Documents', description: 'Degrees, transcripts, and credentials.', status: JourneyStepStatus.PENDING },
+          { order: 3, code: 'VIDEO_INTRO', title: 'Record Video Introduction', description: '60-second video overview.', status: JourneyStepStatus.PENDING },
+          { order: 4, code: 'QUALIFICATION_CHECK', title: 'Qualification Assessment', description: 'Systematic requirement verification.', status: JourneyStepStatus.PENDING },
+          { order: 5, code: 'OPPORTUNITY_MATCHING', title: 'Explore Opportunities', description: 'Target Study, Ausbildung or Job positions.', status: JourneyStepStatus.LOCKED },
+          { order: 6, code: 'EDUCARO_NEXT_STEP', title: 'Educaro Next Step', description: 'Recommended services and application guidance.', status: JourneyStepStatus.LOCKED },
+          { order: 7, code: 'CV_GENERATION', title: 'Generate German Format CV', description: 'Professional German standard CV builder.', status: JourneyStepStatus.LOCKED },
+        ];
+
+        for (const step of defaultSteps) {
+          await tx.journeyStep.create({
+            data: {
+              journeyId: journey.id,
+              stepOrder: step.order,
+              code: step.code,
+              title: step.title,
+              description: step.description,
+              status: step.status,
+            },
+          });
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'REGISTER',
+          entityType: 'USER',
+          entityId: user.id,
+          details: { role: user.role },
+        },
+      });
+
+      return user;
     });
 
-    const savedUser = await this.userRepository.save(user);
-
-    // If applicant, initialize profile and journey
-    if (role === UserRole.APPLICANT) {
-      const profile = this.profileRepository.create({
-        userId: savedUser.id,
-        currentGoal: dto.currentGoal || GoalType.AUSBILDUNG,
-        phone: dto.phone,
-        profileCompleteness: 20,
-        readinessScore: 15,
-        preferredPathways: dto.currentGoal ? [dto.currentGoal] : [GoalType.AUSBILDUNG],
-      });
-      await this.profileRepository.save(profile);
-
-      const journey = this.journeyRepository.create({
-        applicantId: savedUser.id,
-        currentState: 'ONBOARDING',
-        progressPercentage: 10,
-      });
-      const savedJourney = await this.journeyRepository.save(journey);
-
-      const defaultSteps = [
-        { order: 1, code: 'PROFILE_SETUP', title: 'Complete Profile & Goal', description: 'Personal details and selected Germany pathway.', status: JourneyStepStatus.IN_PROGRESS },
-        { order: 2, code: 'DOCUMENT_UPLOAD', title: 'Upload Academic Documents', description: 'Degrees, transcripts, and credentials.', status: JourneyStepStatus.PENDING },
-        { order: 3, code: 'VIDEO_INTRO', title: 'Record Video Introduction', description: '60-second video overview.', status: JourneyStepStatus.PENDING },
-        { order: 4, code: 'QUALIFICATION_CHECK', title: 'Qualification Assessment', description: 'Systematic requirement verification.', status: JourneyStepStatus.PENDING },
-        { order: 5, code: 'OPPORTUNITY_MATCHING', title: 'Explore Opportunities', description: 'Target Study, Ausbildung or Job positions.', status: JourneyStepStatus.LOCKED },
-        { order: 6, code: 'EDUCARO_NEXT_STEP', title: 'Educaro Next Step', description: 'Recommended services and application guidance.', status: JourneyStepStatus.LOCKED },
-        { order: 7, code: 'CV_GENERATION', title: 'Generate German Format CV', description: 'Professional German standard CV builder.', status: JourneyStepStatus.LOCKED },
-      ];
-
-      for (const step of defaultSteps) {
-        await this.journeyStepRepository.save(
-          this.journeyStepRepository.create({
-            journeyId: savedJourney.id,
-            stepOrder: step.order,
-            code: step.code,
-            title: step.title,
-            description: step.description,
-            status: step.status,
-          }),
-        );
-      }
-    }
-
     const tokens = await this.generateTokens(savedUser);
-
-    await this.auditLogRepository.save(
-      this.auditLogRepository.create({
-        userId: savedUser.id,
-        action: 'REGISTER',
-        entityType: 'USER',
-        entityId: savedUser.id,
-        details: { role: savedUser.role },
-      }),
-    );
 
     // Dispatch welcome email via Gmail SMTP
     this.mailService.sendRegistrationSuccessEmail(savedUser.email, savedUser.firstName).catch((err) => {
@@ -138,11 +127,9 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, meta?: LoginMetadata) {
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .addSelect('user.passwordHash')
-      .where('user.email = :email', { email: dto.email.toLowerCase().trim() })
-      .getOne();
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase().trim() },
+    });
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -159,14 +146,14 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user);
 
-    await this.auditLogRepository.save(
-      this.auditLogRepository.create({
+    await this.prisma.auditLog.create({
+      data: {
         userId: user.id,
         action: 'LOGIN',
         entityType: 'USER',
         entityId: user.id,
-      }),
-    );
+      },
+    });
 
     // Dispatch security login alert email via Gmail SMTP
     this.mailService.sendLoginSuccessEmail(user.email, user.firstName, meta).catch((err) => {
@@ -192,13 +179,13 @@ export class AuthService {
         secret: process.env.AUTH_REFRESH_SECRET || 'nexora_dev_refresh_jwt_secret_key_super_secure_2026_y83',
       });
 
-      const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user || !user.isActive) {
         throw new UnauthorizedException('Invalid session');
       }
 
       // Check if token exists and is not revoked
-      const tokens = await this.refreshTokenRepository.find({
+      const tokens = await this.prisma.refreshToken.findMany({
         where: { userId: user.id, isRevoked: false },
       });
 
@@ -207,8 +194,10 @@ export class AuthService {
         if (await bcrypt.compare(token, t.tokenHash)) {
           found = true;
           // Revoke old token for rotation
-          t.isRevoked = true;
-          await this.refreshTokenRepository.save(t);
+          await this.prisma.refreshToken.update({
+            where: { id: t.id },
+            data: { isRevoked: true },
+          });
           break;
         }
       }
@@ -228,30 +217,32 @@ export class AuthService {
   }
 
   async logout(userId: string) {
-    await this.refreshTokenRepository.update({ userId }, { isRevoked: true });
+    await this.prisma.refreshToken.updateMany({
+      where: { userId },
+      data: { isRevoked: true },
+    });
     return { success: true, message: 'Logged out successfully' };
   }
 
   async forgotPassword(email: string) {
-    const user = await this.userRepository.findOne({ where: { email: email.toLowerCase() } });
+    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) {
       // Return success to avoid email enumeration
       return { success: true, message: 'If an account exists with this email, password reset instructions have been generated.' };
     }
 
-    // In production, an email would be sent. For demo, we issue a reset token in audit logs.
     const resetToken = this.jwtService.sign(
       { sub: user.id, purpose: 'RESET_PASSWORD' },
       { expiresIn: '1h', secret: process.env.AUTH_SECRET || 'nexora_dev_jwt_secret_key_super_secure_2026_x92' },
     );
 
-    await this.auditLogRepository.save(
-      this.auditLogRepository.create({
+    await this.prisma.auditLog.create({
+      data: {
         userId: user.id,
         action: 'FORGOT_PASSWORD_REQUEST',
         details: { resetTokenCreated: true },
-      }),
-    );
+      },
+    });
 
     return {
       success: true,
@@ -270,16 +261,25 @@ export class AuthService {
         throw new BadRequestException('Invalid token purpose');
       }
 
-      const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user) {
         throw new NotFoundException('User not found');
       }
 
-      user.passwordHash = await bcrypt.hash(newPassword, 10);
-      await this.userRepository.save(user);
+      const passwordHash = await bcrypt.hash(newPassword, 10);
 
-      // Revoke all existing sessions
-      await this.refreshTokenRepository.update({ userId: user.id }, { isRevoked: true });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { passwordHash },
+        });
+
+        // Revoke all existing sessions
+        await tx.refreshToken.updateMany({
+          where: { userId: user.id },
+          data: { isRevoked: true },
+        });
+      });
 
       return { success: true, message: 'Password has been reset successfully. Please log in with your new password.' };
     } catch (e) {
@@ -322,28 +322,34 @@ export class AuthService {
 
     this.otpStore.delete(`${cleanEmail}_LOGIN`);
 
-    let user = await this.userRepository.findOne({ where: { email: cleanEmail } });
+    let user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
     if (!user) {
       // Auto-register verified email as APPLICANT
       const randomPassword = await bcrypt.hash(Math.random().toString(36), 10);
-      user = this.userRepository.create({
-        email: cleanEmail,
-        firstName: cleanEmail.split('@')[0],
-        lastName: 'User',
-        passwordHash: randomPassword,
-        role: UserRole.APPLICANT,
-        isActive: true,
-      });
-      user = await this.userRepository.save(user);
+      user = await this.prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            email: cleanEmail,
+            firstName: cleanEmail.split('@')[0],
+            lastName: 'User',
+            passwordHash: randomPassword,
+            role: UserRole.APPLICANT,
+            isActive: true,
+          },
+        });
 
-      // Create applicant profile
-      const profile = this.profileRepository.create({
-        userId: user.id,
-        currentGoal: GoalType.AUSBILDUNG,
-        profileCompleteness: 20,
-        readinessScore: 15,
+        // Create applicant profile
+        await tx.applicantProfile.create({
+          data: {
+            userId: newUser.id,
+            currentGoal: GoalType.AUSBILDUNG,
+            profileCompleteness: 20,
+            readinessScore: 15,
+          },
+        });
+
+        return newUser;
       });
-      await this.profileRepository.save(profile);
 
       // Send registration welcome email
       this.mailService.sendRegistrationSuccessEmail(user.email, user.firstName).catch((err) => {
@@ -389,7 +395,7 @@ export class AuthService {
 
     this.otpStore.delete(`${cleanEmail}_REGISTER`);
 
-    const existing = await this.userRepository.findOne({ where: { email: cleanEmail } });
+    const existing = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
     if (existing) {
       throw new ConflictException('An account with this email address already exists');
     }
@@ -398,27 +404,33 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(passwordToHash, 10);
     const role = dto.role || UserRole.APPLICANT;
 
-    const user = this.userRepository.create({
-      email: cleanEmail,
-      passwordHash: hashedPassword,
-      firstName: dto.firstName || cleanEmail.split('@')[0],
-      lastName: dto.lastName || '',
-      role,
-      phone: dto.phone,
-      isActive: true,
-    });
-    const savedUser = await this.userRepository.save(user);
-
-    if (role === UserRole.APPLICANT) {
-      const profile = this.profileRepository.create({
-        userId: savedUser.id,
-        currentGoal: GoalType.AUSBILDUNG,
-        phone: dto.phone,
-        profileCompleteness: 20,
-        readinessScore: 15,
+    const savedUser = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: cleanEmail,
+          passwordHash: hashedPassword,
+          firstName: dto.firstName || cleanEmail.split('@')[0],
+          lastName: dto.lastName || '',
+          role,
+          phone: dto.phone,
+          isActive: true,
+        },
       });
-      await this.profileRepository.save(profile);
-    }
+
+      if (role === UserRole.APPLICANT) {
+        await tx.applicantProfile.create({
+          data: {
+            userId: user.id,
+            currentGoal: GoalType.AUSBILDUNG,
+            phone: dto.phone,
+            profileCompleteness: 20,
+            readinessScore: 15,
+          },
+        });
+      }
+
+      return user;
+    });
 
     const tokens = await this.generateTokens(savedUser);
 
@@ -450,16 +462,25 @@ export class AuthService {
 
     this.otpStore.delete(`${cleanEmail}_FORGOT_PASSWORD`);
 
-    const user = await this.userRepository.findOne({ where: { email: cleanEmail } });
+    const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
     if (!user) {
       throw new NotFoundException('No account found with this email address');
     }
 
-    user.passwordHash = await bcrypt.hash(newPassword, 10);
-    await this.userRepository.save(user);
+    const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    // Revoke all existing sessions
-    await this.refreshTokenRepository.update({ userId: user.id }, { isRevoked: true });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      });
+
+      // Revoke all existing sessions
+      await tx.refreshToken.updateMany({
+        where: { userId: user.id },
+        data: { isRevoked: true },
+      });
+    });
 
     // Dispatch password reset confirmation email via Gmail SMTP
     this.mailService.sendPasswordResetSuccessEmail(user.email, user.firstName).catch((err) => {
@@ -472,7 +493,7 @@ export class AuthService {
     };
   }
 
-  private async generateTokens(user: User) {
+  private async generateTokens(user: { id: string; email: string; role: string }) {
     const payload = { sub: user.id, email: user.email, role: user.role };
 
     // 30 days session for seamless persistent login
@@ -491,13 +512,13 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 90);
 
-    await this.refreshTokenRepository.save(
-      this.refreshTokenRepository.create({
+    await this.prisma.refreshToken.create({
+      data: {
         userId: user.id,
         tokenHash,
         expiresAt,
-      }),
-    );
+      },
+    });
 
     return {
       accessToken,

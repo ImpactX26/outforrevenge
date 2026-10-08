@@ -1,56 +1,29 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../database/entities/user.entity';
-import { Opportunity } from '../database/entities/opportunity.entity';
-import { QualificationRequirement } from '../database/entities/qualification-requirement.entity';
-import { EducaroService } from '../database/entities/educaro-service.entity';
-import { RoutingRule } from '../database/entities/routing-rule.entity';
-import { AgentExecution } from '../database/entities/agent-execution.entity';
-import { AuditLog } from '../database/entities/audit-log.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '../common/enums';
 
 @Injectable()
 export class AdminService {
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-    @InjectRepository(Opportunity)
-    private readonly oppRepo: Repository<Opportunity>,
-    @InjectRepository(QualificationRequirement)
-    private readonly reqRepo: Repository<QualificationRequirement>,
-    @InjectRepository(EducaroService)
-    private readonly serviceRepo: Repository<EducaroService>,
-    @InjectRepository(RoutingRule)
-    private readonly ruleRepo: Repository<RoutingRule>,
-    @InjectRepository(AgentExecution)
-    private readonly execRepo: Repository<AgentExecution>,
-    @InjectRepository(AuditLog)
-    private readonly auditRepo: Repository<AuditLog>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAllUsers(role?: UserRole) {
-    const query = this.userRepo.createQueryBuilder('u')
-      .leftJoinAndSelect('u.profile', 'profile')
-      .orderBy('u.createdAt', 'DESC');
-
-    if (role) {
-      query.where('u.role = :role', { role });
-    }
-
-    return query.getMany();
+    return this.prisma.user.findMany({
+      where: role ? { role } : undefined,
+      include: { profile: true },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async getAnalytics() {
-    const totalUsers = await this.userRepo.count();
-    const applicantsCount = await this.userRepo.count({ where: { role: UserRole.APPLICANT } });
-    const consultantsCount = await this.userRepo.count({ where: { role: UserRole.CONSULTANT } });
-    const totalExecutions = await this.execRepo.count();
-    const opportunitiesCount = await this.oppRepo.count();
-    const servicesCount = await this.serviceRepo.count();
+    const totalUsers = await this.prisma.user.count();
+    const applicantsCount = await this.prisma.user.count({ where: { role: UserRole.APPLICANT } });
+    const consultantsCount = await this.prisma.user.count({ where: { role: UserRole.CONSULTANT } });
+    const totalExecutions = await this.prisma.agentExecution.count();
+    const opportunitiesCount = await this.prisma.opportunity.count();
+    const servicesCount = await this.prisma.educaroService.count();
 
-    const recentExecutions = await this.execRepo.find({
-      order: { createdAt: 'DESC' },
+    const recentExecutions = await this.prisma.agentExecution.findMany({
+      orderBy: { createdAt: 'desc' },
       take: 10,
     });
 
@@ -68,113 +41,121 @@ export class AdminService {
   }
 
   async getAgentExecutions(limit = 50) {
-    return this.execRepo.find({
-      order: { createdAt: 'DESC' },
+    return this.prisma.agentExecution.findMany({
+      orderBy: { createdAt: 'desc' },
       take: limit,
-      relations: ['applicant'],
+      include: { applicant: true },
     });
   }
 
   async getAuditLogs(limit = 50) {
-    return this.auditRepo.find({
-      order: { createdAt: 'DESC' },
+    return this.prisma.auditLog.findMany({
+      orderBy: { createdAt: 'desc' },
       take: limit,
-      relations: ['user'],
+      include: { user: true },
     });
   }
 
   // Opportunity CRUD
-  async createOpportunity(data: Partial<Opportunity>) {
-    const opp = this.oppRepo.create(data);
-    return this.oppRepo.save(opp);
+  async createOpportunity(data: any) {
+    return this.prisma.opportunity.create({ data });
   }
 
-  async updateOpportunity(id: string, data: Partial<Opportunity>) {
-    const opp = await this.oppRepo.findOne({ where: { id } });
+  async updateOpportunity(id: string, data: any) {
+    const opp = await this.prisma.opportunity.findUnique({ where: { id } });
     if (!opp) throw new NotFoundException('Opportunity not found');
-    Object.assign(opp, data);
-    return this.oppRepo.save(opp);
+    return this.prisma.opportunity.update({
+      where: { id },
+      data,
+    });
   }
 
   async deleteOpportunity(id: string) {
-    const opp = await this.oppRepo.findOne({ where: { id } });
+    const opp = await this.prisma.opportunity.findUnique({ where: { id } });
     if (!opp) throw new NotFoundException('Opportunity not found');
-    await this.oppRepo.remove(opp);
+    await this.prisma.opportunity.delete({ where: { id } });
     return { success: true };
   }
 
   // Requirements CRUD
   async getRequirements() {
-    return this.reqRepo.find({ order: { pathway: 'ASC', weight: 'DESC' } });
+    return this.prisma.qualificationRequirement.findMany({
+      orderBy: [{ pathway: 'asc' }, { weight: 'desc' }],
+    });
   }
 
-  async createRequirement(data: Partial<QualificationRequirement>) {
-    const req = this.reqRepo.create(data);
-    return this.reqRepo.save(req);
+  async createRequirement(data: any) {
+    return this.prisma.qualificationRequirement.create({ data });
   }
 
-  async updateRequirement(id: string, data: Partial<QualificationRequirement>) {
-    const req = await this.reqRepo.findOne({ where: { id } });
+  async updateRequirement(id: string, data: any) {
+    const req = await this.prisma.qualificationRequirement.findUnique({ where: { id } });
     if (!req) throw new NotFoundException('Requirement not found');
-    Object.assign(req, data);
-    return this.reqRepo.save(req);
+    return this.prisma.qualificationRequirement.update({
+      where: { id },
+      data,
+    });
   }
 
   async deleteRequirement(id: string) {
-    const req = await this.reqRepo.findOne({ where: { id } });
+    const req = await this.prisma.qualificationRequirement.findUnique({ where: { id } });
     if (!req) throw new NotFoundException('Requirement not found');
-    await this.reqRepo.remove(req);
+    await this.prisma.qualificationRequirement.delete({ where: { id } });
     return { success: true };
   }
 
   // Educaro Services CRUD
   async getServices() {
-    return this.serviceRepo.find({ order: { createdAt: 'ASC' } });
+    return this.prisma.educaroService.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
-  async createService(data: Partial<EducaroService>) {
-    const svc = this.serviceRepo.create(data);
-    return this.serviceRepo.save(svc);
+  async createService(data: any) {
+    return this.prisma.educaroService.create({ data });
   }
 
-  async updateService(id: string, data: Partial<EducaroService>) {
-    const svc = await this.serviceRepo.findOne({ where: { id } });
+  async updateService(id: string, data: any) {
+    const svc = await this.prisma.educaroService.findUnique({ where: { id } });
     if (!svc) throw new NotFoundException('Service not found');
-    Object.assign(svc, data);
-    return this.serviceRepo.save(svc);
+    return this.prisma.educaroService.update({
+      where: { id },
+      data,
+    });
   }
 
   async deleteService(id: string) {
-    const svc = await this.serviceRepo.findOne({ where: { id } });
+    const svc = await this.prisma.educaroService.findUnique({ where: { id } });
     if (!svc) throw new NotFoundException('Service not found');
-    await this.serviceRepo.remove(svc);
+    await this.prisma.educaroService.delete({ where: { id } });
     return { success: true };
   }
 
   // Routing Rules CRUD
   async getRules() {
-    return this.ruleRepo.find({
-      order: { priority: 'DESC' },
-      relations: ['targetService'],
+    return this.prisma.routingRule.findMany({
+      orderBy: { priority: 'desc' },
+      include: { targetService: true },
     });
   }
 
-  async createRule(data: Partial<RoutingRule>) {
-    const rule = this.ruleRepo.create(data);
-    return this.ruleRepo.save(rule);
+  async createRule(data: any) {
+    return this.prisma.routingRule.create({ data });
   }
 
-  async updateRule(id: string, data: Partial<RoutingRule>) {
-    const rule = await this.ruleRepo.findOne({ where: { id } });
+  async updateRule(id: string, data: any) {
+    const rule = await this.prisma.routingRule.findUnique({ where: { id } });
     if (!rule) throw new NotFoundException('Rule not found');
-    Object.assign(rule, data);
-    return this.ruleRepo.save(rule);
+    return this.prisma.routingRule.update({
+      where: { id },
+      data,
+    });
   }
 
   async deleteRule(id: string) {
-    const rule = await this.ruleRepo.findOne({ where: { id } });
+    const rule = await this.prisma.routingRule.findUnique({ where: { id } });
     if (!rule) throw new NotFoundException('Rule not found');
-    await this.ruleRepo.remove(rule);
+    await this.prisma.routingRule.delete({ where: { id } });
     return { success: true };
   }
 }

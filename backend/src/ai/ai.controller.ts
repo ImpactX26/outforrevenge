@@ -32,7 +32,7 @@ export class AiController {
     const messages = history || [];
     messages.push({ role: 'user', content: message });
 
-    const reply = await this.aiService.chat(messages);
+    const reply = await this.aiService.chatWithContext(applicantId, messages);
     return {
       success: true,
       message: reply,

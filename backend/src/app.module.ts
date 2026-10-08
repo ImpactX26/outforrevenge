@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import * as path from 'path';
-import { dataSourceOptions } from './database/data-source';
+import { PrismaModule } from './prisma/prisma.module';
 import { HealthController } from './health.controller';
 import { AuthModule } from './auth/auth.module';
 import { StorageModule } from './storage/storage.module';
@@ -33,7 +32,7 @@ import { MailModule } from './mail/mail.module';
         path.resolve(__dirname, '../.env'),
       ],
     }),
-    TypeOrmModule.forRoot(dataSourceOptions),
+    PrismaModule,
     StorageModule,
     AiModule,
     AuthModule,

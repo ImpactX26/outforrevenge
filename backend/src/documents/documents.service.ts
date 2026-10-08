@@ -1,19 +1,13 @@
 import {
   Injectable,
+  Inject,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Document } from '../database/entities/document.entity';
-import { DocumentExtraction } from '../database/entities/document-extraction.entity';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
-import { Education } from '../database/entities/education.entity';
-import { Language } from '../database/entities/language.entity';
-import { AuditLog } from '../database/entities/audit-log.entity';
-import { LocalStorageService } from '../storage/local-storage.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { IStorageService, STORAGE_SERVICE_TOKEN } from '../storage/storage.interface';
 import { DefaultDocumentProcessorService } from './processors/default-document-processor.service';
 import {
   DocumentStatus,
@@ -36,19 +30,9 @@ export class DocumentsService {
   ];
 
   constructor(
-    @InjectRepository(Document)
-    private readonly documentRepo: Repository<Document>,
-    @InjectRepository(DocumentExtraction)
-    private readonly extractionRepo: Repository<DocumentExtraction>,
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
-    @InjectRepository(Education)
-    private readonly educationRepo: Repository<Education>,
-    @InjectRepository(Language)
-    private readonly languageRepo: Repository<Language>,
-    @InjectRepository(AuditLog)
-    private readonly auditRepo: Repository<AuditLog>,
-    private readonly storageService: LocalStorageService,
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE_TOKEN)
+    private readonly storageService: IStorageService,
     private readonly documentProcessor: DefaultDocumentProcessorService,
   ) {}
 
@@ -56,7 +40,7 @@ export class DocumentsService {
     applicantId: string,
     file: Express.Multer.File,
     documentType: DocumentType,
-  ): Promise<Document> {
+  ): Promise<any> {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
@@ -79,40 +63,43 @@ export class DocumentsService {
       file.mimetype,
     );
 
-    const doc = this.documentRepo.create({
-      applicantId,
-      documentType,
-      filename: uploadResult.filename,
-      storageKey: uploadResult.storageKey,
-      fileSize: uploadResult.fileSize,
-      mimeType: uploadResult.mimeType,
-      status: DocumentStatus.UPLOADED,
+    const doc = await this.prisma.document.create({
+      data: {
+        applicantId,
+        documentType,
+        filename: uploadResult.filename,
+        storageKey: uploadResult.storageKey,
+        fileSize: BigInt(uploadResult.fileSize),
+        mimeType: uploadResult.mimeType,
+        status: DocumentStatus.UPLOADED,
+      },
     });
 
-    const savedDoc = await this.documentRepo.save(doc);
-
-    await this.auditRepo.save(
-      this.auditRepo.create({
+    await this.prisma.auditLog.create({
+      data: {
         userId: applicantId,
         action: 'DOCUMENT_UPLOAD',
         entityType: 'DOCUMENT',
-        entityId: savedDoc.id,
-        details: { filename: savedDoc.filename, type: savedDoc.documentType },
-      }),
-    );
-
-    // Auto-trigger analysis
-    this.analyzeDocument(savedDoc.id, applicantId).catch((err) => {
-      this.logger.error(`Background analysis failed for document ${savedDoc.id}: ${err.message}`);
+        entityId: doc.id,
+        details: { filename: doc.filename, type: doc.documentType },
+      },
     });
 
-    return savedDoc;
+    // Auto-trigger analysis in background
+    this.analyzeDocument(doc.id, applicantId).catch((err) => {
+      this.logger.error(`Background analysis failed for document ${doc.id}: ${err.message}`);
+    });
+
+    return {
+      ...doc,
+      fileSize: Number(doc.fileSize),
+    };
   }
 
-  async analyzeDocument(documentId: string, applicantId: string): Promise<DocumentExtraction> {
-    const doc = await this.documentRepo.findOne({
+  async analyzeDocument(documentId: string, applicantId: string): Promise<any> {
+    const doc = await this.prisma.document.findUnique({
       where: { id: documentId },
-      relations: ['extraction'],
+      include: { extraction: true },
     });
 
     if (!doc) {
@@ -123,16 +110,18 @@ export class DocumentsService {
       throw new ForbiddenException('Cannot access documents of another applicant');
     }
 
-    doc.status = DocumentStatus.EXTRACTING;
-    await this.documentRepo.save(doc);
+    await this.prisma.document.update({
+      where: { id: documentId },
+      data: { status: DocumentStatus.EXTRACTING, processingError: null },
+    });
 
     try {
       const buffer = await this.storageService.getFileBuffer(doc.storageKey);
       const result = await this.documentProcessor.processDocument(buffer, doc.mimeType, doc.filename);
 
-      let extraction = doc.extraction;
-      if (!extraction) {
-        extraction = this.extractionRepo.create({
+      const extraction = await this.prisma.documentExtraction.upsert({
+        where: { documentId: doc.id },
+        create: {
           documentId: doc.id,
           rawText: result.rawText,
           extractedJson: result.structuredData,
@@ -143,43 +132,58 @@ export class DocumentsService {
             extractor: 'NexoraDocumentAgent',
             originalFilename: doc.filename,
           },
-        });
-      } else {
-        extraction.rawText = result.rawText;
-        extraction.extractedJson = result.structuredData;
-        extraction.confidence = result.confidence;
-        extraction.warnings = result.warnings;
-      }
+        },
+        update: {
+          rawText: result.rawText,
+          extractedJson: result.structuredData,
+          confidence: result.confidence,
+          warnings: result.warnings,
+          provenance: {
+            extractedAt: new Date().toISOString(),
+            extractor: 'NexoraDocumentAgent',
+            originalFilename: doc.filename,
+          },
+        },
+      });
 
-      const savedExtraction = await this.extractionRepo.save(extraction);
+      await this.prisma.document.update({
+        where: { id: doc.id },
+        data: { status: DocumentStatus.COMPLETED, processingError: null },
+      });
 
-      doc.status = DocumentStatus.COMPLETED;
-      await this.documentRepo.save(doc);
-
-      // Map proposed extractions to Profile with proper provenance
+      // Map proposed extractions to Profile with genuine provenance
       await this.proposeProfileUpdatesFromExtraction(applicantId, doc, result);
 
-      return savedExtraction;
-    } catch (err) {
-      doc.status = DocumentStatus.FAILED;
-      doc.processingError = err.message;
-      await this.documentRepo.save(doc);
+      return extraction;
+    } catch (err: any) {
+      await this.prisma.document.update({
+        where: { id: doc.id },
+        data: {
+          status: DocumentStatus.FAILED,
+          processingError: err.message || 'Unable to process this document.',
+        },
+      });
       throw err;
     }
   }
 
-  async getDocuments(applicantId: string): Promise<Document[]> {
-    return this.documentRepo.find({
+  async getDocuments(applicantId: string): Promise<any[]> {
+    const docs = await this.prisma.document.findMany({
       where: { applicantId },
-      relations: ['extraction'],
-      order: { createdAt: 'DESC' },
+      include: { extraction: true },
+      orderBy: { createdAt: 'desc' },
     });
+
+    return docs.map((doc) => ({
+      ...doc,
+      fileSize: Number(doc.fileSize),
+    }));
   }
 
-  async getDocumentById(documentId: string, applicantId: string): Promise<Document> {
-    const doc = await this.documentRepo.findOne({
+  async getDocumentById(documentId: string, applicantId: string): Promise<any> {
+    const doc = await this.prisma.document.findUnique({
       where: { id: documentId },
-      relations: ['extraction'],
+      include: { extraction: true },
     });
 
     if (!doc) {
@@ -190,69 +194,79 @@ export class DocumentsService {
       throw new ForbiddenException('Unauthorized access to document');
     }
 
-    return doc;
+    return {
+      ...doc,
+      fileSize: Number(doc.fileSize),
+    };
   }
 
   async deleteDocument(documentId: string, applicantId: string): Promise<{ success: boolean }> {
     const doc = await this.getDocumentById(documentId, applicantId);
     await this.storageService.deleteFile(doc.storageKey);
-    await this.documentRepo.remove(doc);
 
-    await this.auditRepo.save(
-      this.auditRepo.create({
+    await this.prisma.document.delete({
+      where: { id: documentId },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
         userId: applicantId,
         action: 'DOCUMENT_DELETE',
         entityType: 'DOCUMENT',
         entityId: documentId,
-      }),
-    );
+      },
+    });
 
     return { success: true };
   }
 
   private async proposeProfileUpdatesFromExtraction(
     applicantId: string,
-    doc: Document,
+    doc: any,
     result: any,
   ) {
-    const profile = await this.profileRepo.findOne({ where: { userId: applicantId } });
+    const profile = await this.prisma.applicantProfile.findUnique({ where: { userId: applicantId } });
     if (!profile) return;
 
     const data = result.structuredData || {};
 
-    // If degree / transcript: add Education record with provenance
+    // If degree / transcript: add Education record with genuine provenance (NEVER INVENTED)
     if (doc.documentType === DocumentType.DEGREE || doc.documentType === DocumentType.TRANSCRIPT) {
-      if (data.institution || data.degree) {
-        const edu = this.educationRepo.create({
-          profileId: profile.id,
-          institution: data.institution || 'Recognized Indian University',
-          degree: data.degree || 'Bachelor Degree',
-          fieldOfStudy: data.field || 'Engineering / Sciences',
-          graduationDate: data.graduationDate || '2024',
-          gradeOrCgpa: data.marks || data.gradeOrCgpa || 'First Class',
-          sourceType: SourceType.DOCUMENT_EXTRACTED,
-          sourceId: doc.id,
-          confidence: result.confidence,
-          verificationStatus: VerificationStatus.PENDING,
+      if (data.institution && data.degree) {
+        await this.prisma.education.create({
+          data: {
+            profileId: profile.id,
+            institution: data.institution,
+            degree: data.degree,
+            fieldOfStudy: data.field || data.fieldOfStudy || 'Not provided',
+            graduationDate: data.graduationDate || null,
+            gradeOrCgpa: data.marks || data.gradeOrCgpa || null,
+            sourceType: SourceType.DOCUMENT_EXTRACTED,
+            sourceId: doc.id,
+            confidence: result.confidence || 0.9,
+            verificationStatus: VerificationStatus.PENDING,
+          },
         });
-        await this.educationRepo.save(edu);
       }
     }
 
-    // If language certificate: add Language record with provenance
+    // If language certificate: add Language record with genuine provenance (NEVER INVENTED)
     if (doc.documentType === DocumentType.LANGUAGE_CERTIFICATE) {
-      const lang = this.languageRepo.create({
-        profileId: profile.id,
-        language: data.language || 'German',
-        proficiencyLevel: data.level || 'B1',
-        certificateType: data.certificateType || 'Goethe-Zertifikat',
-        certificateNumber: data.certificateNumber || null,
-        sourceType: SourceType.DOCUMENT_EXTRACTED,
-        sourceId: doc.id,
-        confidence: result.confidence,
-        verificationStatus: VerificationStatus.PENDING,
-      });
-      await this.languageRepo.save(lang);
+      if (data.language && data.level) {
+        await this.prisma.language.create({
+          data: {
+            profileId: profile.id,
+            language: data.language,
+            proficiencyLevel: data.level,
+            certificateType: data.certificateType || null,
+            certificateNumber: data.certificateNumber || null,
+            sourceType: SourceType.DOCUMENT_EXTRACTED,
+            sourceId: doc.id,
+            confidence: result.confidence || 0.9,
+            verificationStatus: VerificationStatus.PENDING,
+          },
+        });
+      }
     }
   }
 }

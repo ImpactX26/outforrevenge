@@ -2,9 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
-import { startDatabaseServer } from './database/standalone-pg-server';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -30,45 +30,13 @@ async function bootstrap() {
   const logger = new Logger('NexoraBootstrap');
 
   const dbUrl = process.env.DATABASE_URL || '';
-  const isLocalDb = !dbUrl || dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
-
-  let effectiveDbUrl = dbUrl;
-  try {
-    const u = new URL(effectiveDbUrl);
-    u.searchParams.delete('channel_binding');
-    effectiveDbUrl = u.toString();
-  } catch (e) {}
-
-  if (isLocalDb) {
-    try {
-      await startDatabaseServer(5432);
-    } catch (err) {
-      logger.warn(`Could not initialize local database server: ${err}`);
-    }
-  } else {
-    logger.log(`Connected to cloud PostgreSQL: ${effectiveDbUrl.replace(/:[^:@]+@/, ':****@')}`);
-  }
-
-  // Ensure uuid extension exists on database
-  try {
-    const { Client } = await import('pg');
-    const pgClient = new Client({
-      connectionString: effectiveDbUrl,
-      ssl: !isLocalDb ? { rejectUnauthorized: false } : false,
-    });
-    await pgClient.connect();
-    await pgClient.query(`
-      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-      CREATE OR REPLACE FUNCTION uuid_generate_v4() RETURNS uuid AS $$
-        SELECT gen_random_uuid();
-      $$ LANGUAGE sql;
-    `);
-    await pgClient.end();
-  } catch (err: any) {
-    logger.debug?.(`UUID init notice: ${err?.message || err}`);
+  if (dbUrl) {
+    logger.log(`Connecting to PostgreSQL via Prisma: ${dbUrl.replace(/:[^:@]+@/, ':****@')}`);
   }
 
   const app = await NestFactory.create(AppModule);
+
+  app.use(cookieParser());
 
   // Security headers
   app.use(

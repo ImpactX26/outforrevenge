@@ -1,12 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ApplicantProfile } from '../../database/entities/applicant-profile.entity';
-import { Document } from '../../database/entities/document.entity';
-import { Video } from '../../database/entities/video.entity';
-import { QualificationAssessment } from '../../database/entities/qualification-assessment.entity';
-import { AgentExecution } from '../../database/entities/agent-execution.entity';
-import { ConsultantReview } from '../../database/entities/consultant-review.entity';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 import { AgentExecutionStatus, ReviewStatus, DocumentStatus } from '../../common/enums';
 import { AiService } from '../../ai/ai.service';
 import { ConsistencyAgent } from './consistency.agent';
@@ -16,6 +9,15 @@ import { OpportunitiesService } from '../../opportunities/opportunities.service'
 import { RecommendationsService } from '../../recommendations/recommendations.service';
 import { JourneyService } from '../../journey/journey.service';
 import { CvService } from '../../cv/cv.service';
+import { DocumentsService } from '../../documents/documents.service';
+
+export interface PlanningDecision {
+  iteration: number;
+  chosenAgent: string;
+  reason: string;
+  observedState: Record<string, any>;
+  timestamp: string;
+}
 
 export interface OrchestrationResult {
   orchestrationId: string;
@@ -23,6 +25,7 @@ export interface OrchestrationResult {
   iterationsRun: number;
   stopReason: string;
   executedAgents: string[];
+  planningDecisions: PlanningDecision[];
   finalObservedState: Record<string, any>;
   nextBestAction: string;
 }
@@ -30,21 +33,21 @@ export interface OrchestrationResult {
 @Injectable()
 export class OrchestratorService {
   private readonly logger = new Logger(OrchestratorService.name);
-  private readonly runningApplicants = new Set<string>(); // In-memory concurrency lock
+  private readonly runningApplicants = new Set<string>();
+  private readonly runningDocuments = new Set<string>();
+
+  private readonly validAgents = [
+    'DOCUMENT',
+    'CONSISTENCY',
+    'QUALIFICATION',
+    'OPPORTUNITY',
+    'ROUTING',
+    'JOURNEY',
+    'CV',
+  ];
 
   constructor(
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
-    @InjectRepository(Document)
-    private readonly docRepo: Repository<Document>,
-    @InjectRepository(Video)
-    private readonly videoRepo: Repository<Video>,
-    @InjectRepository(QualificationAssessment)
-    private readonly assessmentRepo: Repository<QualificationAssessment>,
-    @InjectRepository(AgentExecution)
-    private readonly executionRepo: Repository<AgentExecution>,
-    @InjectRepository(ConsultantReview)
-    private readonly reviewRepo: Repository<ConsultantReview>,
+    private readonly prisma: PrismaService,
     private readonly aiService: AiService,
     private readonly consistencyAgent: ConsistencyAgent,
     private readonly missingInfoAgent: MissingInfoAgent,
@@ -53,6 +56,8 @@ export class OrchestratorService {
     private readonly recommendationsService: RecommendationsService,
     private readonly journeyService: JourneyService,
     private readonly cvService: CvService,
+    @Inject(forwardRef(() => DocumentsService))
+    private readonly documentsService: DocumentsService,
   ) {}
 
   async orchestrate(
@@ -60,15 +65,16 @@ export class OrchestratorService {
     maxIterations = 8,
     triggerSource = 'USER_EVENT',
   ): Promise<OrchestrationResult> {
-    // 1. Concurrency guard: prevent two orchestrator loops for the same applicant at the same time
+    // 1. Concurrency guard: prevent concurrent runs for the same applicant
     if (this.runningApplicants.has(applicantId)) {
-      this.logger.warn(`Orchestrator already running for applicant ${applicantId}. Skipping duplicate run.`);
+      this.logger.warn(`Orchestrator already running for applicant ${applicantId}. Skipping concurrent execution.`);
       return {
         orchestrationId: 'locked',
         applicantId,
         iterationsRun: 0,
         stopReason: 'CONCURRENT_EXECUTION_BLOCKED',
         executedAgents: [],
+        planningDecisions: [],
         finalObservedState: {},
         nextBestAction: 'Wait for active orchestration to finish.',
       };
@@ -76,31 +82,39 @@ export class OrchestratorService {
 
     this.runningApplicants.add(applicantId);
 
-    // Create Master Orchestrator AgentExecution record
-    const orchestratorExecution = this.executionRepo.create({
-      agentType: 'ORCHESTRATOR',
-      applicantId,
-      status: AgentExecutionStatus.RUNNING,
-      inputReference: `Trigger: ${triggerSource}`,
-      startedAt: new Date(),
-      triggeredBy: triggerSource,
+    // Create Master Orchestrator parent AgentExecution record
+    const parentExecution = await this.prisma.agentExecution.create({
+      data: {
+        agentType: 'ORCHESTRATOR',
+        applicantId,
+        status: AgentExecutionStatus.RUNNING,
+        inputReference: `Trigger: ${triggerSource}`,
+        startedAt: new Date(),
+        triggeredBy: triggerSource,
+      },
     });
-    const savedOrchestrator = await this.executionRepo.save(orchestratorExecution);
 
     const executedAgents: string[] = [];
+    const planningDecisions: PlanningDecision[] = [];
     let iterations = 0;
     let stopReason = 'MAX_ITERATIONS_REACHED';
     let nextBestAction = 'Continue your onboarding journey.';
-    let lastObservedState: any = {};
+    let lastObservedState: Record<string, any> = {};
 
     try {
       while (iterations < maxIterations) {
         iterations++;
 
         // --- STEP 1: OBSERVE shared applicant state from PostgreSQL ---
-        const profile = await this.profileRepo.findOne({
+        const profile = await this.prisma.applicantProfile.findUnique({
           where: { userId: applicantId },
-          relations: ['user', 'educations', 'employments', 'skills', 'languages'],
+          include: {
+            user: true,
+            educations: true,
+            employments: true,
+            skills: true,
+            languages: true,
+          },
         });
 
         if (!profile) {
@@ -108,14 +122,20 @@ export class OrchestratorService {
           break;
         }
 
-        const documents = await this.docRepo.find({ where: { applicantId } });
-        const videos = await this.videoRepo.find({ where: { applicantId } });
-        const latestAssessment = await this.assessmentRepo.findOne({
+        const documents = await this.prisma.document.findMany({ where: { applicantId } });
+        const videos = await this.prisma.video.findMany({ where: { applicantId } });
+        const latestAssessment = await this.prisma.qualificationAssessment.findFirst({
           where: { applicantId },
-          order: { evaluatedAt: 'DESC' },
+          orderBy: { evaluatedAt: 'desc' },
         });
-        const openReview = await this.reviewRepo.findOne({
+        const openReview = await this.prisma.consultantReview.findFirst({
           where: { applicantId, status: ReviewStatus.PENDING },
+        });
+        const matches = await this.prisma.opportunityMatch.findMany({
+          where: { applicantId },
+        });
+        const recommendation = await this.prisma.nextStepRecommendation.findFirst({
+          where: { applicantId, status: 'ACTIVE' },
         });
 
         lastObservedState = {
@@ -126,6 +146,9 @@ export class OrchestratorService {
           videosCount: videos.length,
           hasAssessment: !!latestAssessment,
           assessmentScore: latestAssessment?.score,
+          assessmentStatus: latestAssessment?.status,
+          hasMatches: matches.length > 0,
+          hasRecommendation: !!recommendation,
           hasOpenConsultantReview: !!openReview,
         };
 
@@ -136,81 +159,186 @@ export class OrchestratorService {
           break;
         }
 
-        // --- STEP 2: PLAN (deterministic rules first, AI planner fallback) ---
+        // --- STEP 2: PLAN with Schema Validation & Fallback to Rule Order ---
         let plannedAgent: string | null = null;
         let planningReason = '';
 
+        // Deterministic rule-order milestones
         if (lastObservedState.unprocessedDocumentsCount > 0 && !executedAgents.includes('DOCUMENT')) {
           plannedAgent = 'DOCUMENT';
-          planningReason = 'Unprocessed documents detected. Extracting credentials.';
+          planningReason = 'Unprocessed documents detected. Invoking Document Agent to extract credentials.';
         } else if (documents.length > 0 && !executedAgents.includes('CONSISTENCY')) {
           plannedAgent = 'CONSISTENCY';
           planningReason = 'Verifying consistency between applicant declarations and uploaded documents.';
         } else if (!latestAssessment && profile.educations?.length && !executedAgents.includes('QUALIFICATION')) {
           plannedAgent = 'QUALIFICATION';
           planningReason = 'Profile credentials sufficiently established. Running qualification assessment.';
-        } else if (latestAssessment && !executedAgents.includes('OPPORTUNITY')) {
+        } else if (latestAssessment && matches.length === 0 && !executedAgents.includes('OPPORTUNITY')) {
           plannedAgent = 'OPPORTUNITY';
           planningReason = 'Qualification outcome available. Finding database-backed opportunity matches.';
         } else if (latestAssessment && !executedAgents.includes('ROUTING')) {
+          // Educaro Routing Agent is invoked right after opportunity matching
           plannedAgent = 'ROUTING';
-          planningReason = 'Evaluating Educaro routing rules to recommend the optimal next step.';
+          planningReason = 'Evaluating Educaro routing rules to recommend optimal service or action.';
         } else if (!executedAgents.includes('JOURNEY')) {
           plannedAgent = 'JOURNEY';
           planningReason = 'Syncing dynamic journey steps with current state.';
         } else {
-          // All priority automated agents have completed in this run
           stopReason = 'WORKFLOW_UP_TO_DATE';
           const nextAct = await this.journeyService.getNextAction(applicantId);
           nextBestAction = nextAct.message;
           break;
         }
 
-        // --- STEP 3: ACT (execute the chosen specialized agent) ---
-        this.logger.log(`[Iteration ${iterations}] Running Agent: ${plannedAgent} (${planningReason})`);
-        executedAgents.push(plannedAgent);
-
-        if (plannedAgent === 'DOCUMENT') {
-          // Handled via documents service on upload
-        } else if (plannedAgent === 'CONSISTENCY') {
-          await this.consistencyAgent.checkConsistency(profile, documents, videos, savedOrchestrator.id);
-        } else if (plannedAgent === 'QUALIFICATION') {
-          await this.qualificationService.evaluateApplicant(applicantId, savedOrchestrator.id);
-        } else if (plannedAgent === 'OPPORTUNITY') {
-          await this.opportunitiesService.matchApplicant(applicantId, savedOrchestrator.id);
-        } else if (plannedAgent === 'ROUTING') {
-          await this.recommendationsService.refreshRecommendation(applicantId, savedOrchestrator.id);
-        } else if (plannedAgent === 'JOURNEY') {
-          await this.journeyService.getApplicantJourney(applicantId);
+        // Validate planned agent schema
+        if (!this.validAgents.includes(plannedAgent)) {
+          this.logger.warn(`Invalid planned agent "${plannedAgent}". Falling back to rule order.`);
+          plannedAgent = 'JOURNEY';
+          planningReason = 'Fallback to journey sync.';
         }
 
-        // Short sleep/yield before next loop iteration
+        // Store Planning Decision
+        const decision: PlanningDecision = {
+          iteration: iterations,
+          chosenAgent: plannedAgent,
+          reason: planningReason,
+          observedState: { ...lastObservedState },
+          timestamp: new Date().toISOString(),
+        };
+        planningDecisions.push(decision);
+
+        // Create Child AgentExecution linked to Parent
+        const childExecution = await this.prisma.agentExecution.create({
+          data: {
+            agentType: plannedAgent,
+            applicantId,
+            parentExecutionId: parentExecution.id,
+            status: AgentExecutionStatus.RUNNING,
+            inputReference: `Iteration ${iterations}: ${planningReason}`,
+            triggeredBy: 'ORCHESTRATOR_LOOP',
+            startedAt: new Date(),
+          },
+        });
+
+        this.logger.log(`[Iteration ${iterations}] Running Child Agent: ${plannedAgent} (${planningReason})`);
+        executedAgents.push(plannedAgent);
+
+        // --- STEP 3: ACT ---
+        let childOutput: Record<string, any> = {};
+
+        try {
+          if (plannedAgent === 'DOCUMENT') {
+            const unprocessedDocs = documents.filter((d) => d.status === DocumentStatus.UPLOADED);
+            for (const doc of unprocessedDocs) {
+              if (!this.runningDocuments.has(doc.id)) {
+                this.runningDocuments.add(doc.id);
+                try {
+                  await this.documentsService.analyzeDocument(doc.id, applicantId);
+                } finally {
+                  this.runningDocuments.delete(doc.id);
+                }
+              }
+            }
+            childOutput = { processedCount: unprocessedDocs.length };
+          } else if (plannedAgent === 'CONSISTENCY') {
+            const consistencyResult = await this.consistencyAgent.checkConsistency(
+              profile,
+              documents,
+              videos,
+              childExecution.id,
+            );
+            childOutput = consistencyResult;
+
+            // Escalate to consultant review if inconsistencies found
+            if (consistencyResult.hasInconsistencies) {
+              const highSeverity = consistencyResult.findings.find((f) => f.severity === 'HIGH');
+              if (highSeverity) {
+                stopReason = 'CONSULTANT_REFERRAL_REQUIRED';
+                nextBestAction = 'Discrepancy detected between self-reported information and uploaded credentials. Educaro consultant review opened.';
+                break;
+              }
+            }
+          } else if (plannedAgent === 'QUALIFICATION') {
+            const assessment = await this.qualificationService.evaluateApplicant(
+              applicantId,
+              childExecution.id,
+            );
+            childOutput = { score: assessment.score, status: assessment.status };
+          } else if (plannedAgent === 'OPPORTUNITY') {
+            const matchResults = await this.opportunitiesService.matchApplicant(
+              applicantId,
+              childExecution.id,
+            );
+            childOutput = { matchesCount: matchResults.length };
+          } else if (plannedAgent === 'ROUTING') {
+            const recResult = await this.recommendationsService.refreshRecommendation(
+              applicantId,
+              childExecution.id,
+            );
+            childOutput = { recommendationTitle: recResult.title, type: recResult.type };
+          } else if (plannedAgent === 'JOURNEY') {
+            const jResult = await this.journeyService.getApplicantJourney(applicantId);
+            childOutput = { progress: jResult.progressPercentage, state: jResult.currentState };
+          }
+
+          // Mark Child Execution Completed
+          await this.prisma.agentExecution.update({
+            where: { id: childExecution.id },
+            data: {
+              status: AgentExecutionStatus.COMPLETED,
+              output: childOutput,
+              completedAt: new Date(),
+            },
+          });
+        } catch (actErr: any) {
+          this.logger.error(`Child agent ${plannedAgent} failed: ${actErr.message}`);
+          await this.prisma.agentExecution.update({
+            where: { id: childExecution.id },
+            data: {
+              status: AgentExecutionStatus.FAILED,
+              error: actErr.message,
+              completedAt: new Date(),
+            },
+          });
+          // Non-fatal: continue loop or break if fatal
+        }
       }
-    } catch (err) {
-      this.logger.error(`Orchestrator encountered error: ${err.message}`, err.stack);
-      savedOrchestrator.status = AgentExecutionStatus.FAILED;
-      savedOrchestrator.error = err.message;
+    } catch (err: any) {
+      this.logger.error(`Orchestrator error: ${err.message}`, err.stack);
+      await this.prisma.agentExecution.update({
+        where: { id: parentExecution.id },
+        data: {
+          status: AgentExecutionStatus.FAILED,
+          error: err.message,
+        },
+      });
     } finally {
       this.runningApplicants.delete(applicantId);
 
-      savedOrchestrator.status = AgentExecutionStatus.COMPLETED;
-      savedOrchestrator.completedAt = new Date();
-      savedOrchestrator.output = {
-        iterationsRun: iterations,
-        stopReason,
-        executedAgents,
-        finalObservedState: lastObservedState,
-        nextBestAction,
-      };
-      await this.executionRepo.save(savedOrchestrator);
+      await this.prisma.agentExecution.update({
+        where: { id: parentExecution.id },
+        data: {
+          status: AgentExecutionStatus.COMPLETED,
+          completedAt: new Date(),
+          output: {
+            iterationsRun: iterations,
+            stopReason,
+            executedAgents,
+            planningDecisions,
+            finalObservedState: lastObservedState,
+            nextBestAction,
+          } as any,
+        },
+      });
     }
 
     return {
-      orchestrationId: savedOrchestrator.id,
+      orchestrationId: parentExecution.id,
       applicantId,
       iterationsRun: iterations,
       stopReason,
       executedAgents,
+      planningDecisions,
       finalObservedState: lastObservedState,
       nextBestAction,
     };

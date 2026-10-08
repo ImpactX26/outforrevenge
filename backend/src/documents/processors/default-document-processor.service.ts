@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import * as pdfParse from 'pdf-parse';
 import {
   IDocumentProcessor,
@@ -24,23 +24,34 @@ export class DefaultDocumentProcessorService implements IDocumentProcessor {
       try {
         const parsed = await pdfParse(buffer);
         rawText = parsed.text ? parsed.text.trim() : '';
-      } catch (err) {
+      } catch (err: any) {
         this.logger.warn(`pdf-parse failed on ${filename}: ${err.message}`);
-        warnings.push('PDF text layer extraction had issues. Attempting secondary parsing.');
+        throw new BadRequestException(`Unable to parse PDF text layer for ${filename}: ${err.message}`);
       }
+    } else if (
+      mimeType === 'application/msword' ||
+      mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ) {
+      // DOC/DOCX basic text extract or UTF-8 text representation
+      rawText = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ').trim();
     } else {
-      // Text or Image simulation / basic parsing
-      rawText = buffer.toString('utf-8').slice(0, 10000);
-      warnings.push('Image or non-PDF file processed via structured OCR pipeline.');
+      // Image file (PNG/JPG/JPEG) without OCR provider configured
+      // We strictly do NOT pretend OCR ran.
+      throw new BadRequestException(
+        `Unable to process scanned document/image "${filename}". An external OCR engine is required for image files. Please upload a digital PDF with a selectable text layer.`,
+      );
     }
 
-    if (!rawText || rawText.length < 10) {
-      rawText = `[Scanned Academic / Professional Credential Document: ${filename}]\nCandidate qualification record for German pathway application.`;
-      warnings.push('Scanned document detected. Performed high-accuracy OCR extraction.');
+    if (!rawText || rawText.length < 15) {
+      // Scanned PDF with no extractable text layer
+      throw new BadRequestException(
+        `Unable to process this document. Scanned PDF "${filename}" contains no extractable text layer. Please upload a searchable digital PDF or OCR-enabled document.`,
+      );
     }
 
     // Call Document Extraction Agent via AiService
-    const prompt = `Extract structured details from the following applicant document.
+    const prompt = `Extract structured applicant details from the following document text.
+Return ONLY verified fields present in the text. Do NOT invent institutions, degrees, or marks.
 Filename: ${filename}
 MimeType: ${mimeType}
 Document Raw Text:
@@ -48,29 +59,25 @@ Document Raw Text:
 ${rawText.slice(0, 5000)}
 """`;
 
-    try {
-      const { data } = await this.aiService.runAgentStructured<any>(
-        'DOCUMENT',
-        undefined,
-        prompt,
-      );
+    // Must call AI service. If call fails, do not invent data; fail with clear message.
+    const agentResult = await this.aiService.runAgentStructured<any>(
+      'DOCUMENT',
+      undefined,
+      prompt,
+    );
 
-      return {
-        rawText,
-        structuredData: data?.fields || data || {},
-        confidence: data?.confidence || 0.95,
-        warnings: [...warnings, ...(data?.warnings || [])],
-        documentType: data?.documentType || 'DEGREE',
-      };
-    } catch (err) {
-      this.logger.error(`AI Document Agent failed: ${err.message}`);
-      return {
-        rawText,
-        structuredData: { filename, processedAt: new Date().toISOString() },
-        confidence: 0.75,
-        warnings: [...warnings, 'Automated extraction completed with fallback schema.'],
-        documentType: 'OTHER',
-      };
+    if (!agentResult || !agentResult.data) {
+      throw new BadRequestException('Document analysis AI provider failed to return structured data.');
     }
+
+    const data = agentResult.data;
+
+    return {
+      rawText,
+      structuredData: data?.fields || data || {},
+      confidence: typeof data?.confidence === 'number' ? data.confidence : 0.9,
+      warnings: [...warnings, ...(data?.warnings || [])],
+      documentType: data?.documentType || 'DEGREE',
+    };
   }
 }

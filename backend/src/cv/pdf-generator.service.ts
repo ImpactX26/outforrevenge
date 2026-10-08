@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
-import { CV } from '../database/entities/cv.entity';
+import { CV } from '@prisma/client';
 
 @Injectable()
 export class PdfGeneratorService {
@@ -18,15 +18,21 @@ export class PdfGeneratorService {
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', (err) => reject(err));
 
+      const personalInfo = (cv.personalInfo || {}) as any;
+      const educationData = (Array.isArray(cv.educationData) ? cv.educationData : []) as any[];
+      const employmentData = (Array.isArray(cv.employmentData) ? cv.employmentData : []) as any[];
+      const skillsData = (Array.isArray(cv.skillsData) ? cv.skillsData : []) as any[];
+      const languagesData = (Array.isArray(cv.languagesData) ? cv.languagesData : []) as any[];
+
       // Header: Name & Contact
-      doc.fontSize(22).fillColor('#0f172a').font('Helvetica-Bold').text(cv.personalInfo.fullName || 'Applicant Name');
+      doc.fontSize(22).fillColor('#0f172a').font('Helvetica-Bold').text(personalInfo.fullName || 'Applicant Name');
       doc.fontSize(10).fillColor('#2563eb').font('Helvetica').text('NEXORA — LEBENSLAUF (GERMAN STANDARD CV)');
       doc.moveDown(0.5);
 
       const contact = [
-        cv.personalInfo.email,
-        cv.personalInfo.phone,
-        cv.personalInfo.location,
+        personalInfo.email,
+        personalInfo.phone,
+        personalInfo.location,
       ].filter(Boolean).join('  |  ');
       doc.fontSize(9).fillColor('#475569').text(contact);
       doc.moveDown(0.8);
@@ -45,11 +51,11 @@ export class PdfGeneratorService {
       }
 
       // Section: Education (Ausbildung / Studium)
-      if (cv.educationData && cv.educationData.length > 0) {
+      if (educationData.length > 0) {
         doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text('AUSBILDUNG & STUDIUM / EDUCATION');
         doc.moveDown(0.3);
 
-        for (const edu of cv.educationData) {
+        for (const edu of educationData) {
           doc.fontSize(10).fillColor('#0f172a').font('Helvetica-Bold').text(`${edu.degree} — ${edu.field}`);
           doc.fontSize(9).fillColor('#2563eb').font('Helvetica').text(`${edu.institution}  (${edu.period || 'Graduated'})`);
           if (edu.grade) {
@@ -64,11 +70,11 @@ export class PdfGeneratorService {
       }
 
       // Section: Work Experience (Berufserfahrung)
-      if (cv.employmentData && cv.employmentData.length > 0) {
+      if (employmentData.length > 0) {
         doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text('BERUFSERFAHRUNG / WORK EXPERIENCE');
         doc.moveDown(0.3);
 
-        for (const emp of cv.employmentData) {
+        for (const emp of employmentData) {
           doc.fontSize(10).fillColor('#0f172a').font('Helvetica-Bold').text(emp.role);
           doc.fontSize(9).fillColor('#2563eb').font('Helvetica').text(`${emp.company}  (${emp.period})`);
           if (emp.responsibilities) {
@@ -80,19 +86,19 @@ export class PdfGeneratorService {
       }
 
       // Section: Skills & Competencies (Kenntnisse & Fähigkeiten)
-      if (cv.skillsData && cv.skillsData.length > 0) {
+      if (skillsData.length > 0) {
         doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text('KENNTNISSE & FÄHIGKEITEN / SKILLS');
         doc.moveDown(0.3);
-        const skillList = cv.skillsData.map((s) => `${s.name} (${s.level || 'Proficient'})`).join('  •  ');
+        const skillList = skillsData.map((s) => `${s.name} (${s.level || 'Proficient'})`).join('  •  ');
         doc.fontSize(9).fillColor('#334155').font('Helvetica').text(skillList);
         doc.moveDown(1);
       }
 
       // Section: Languages (Sprachkenntnisse)
-      if (cv.languagesData && cv.languagesData.length > 0) {
+      if (languagesData.length > 0) {
         doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text('SPRACHKENNTNISSE / LANGUAGES');
         doc.moveDown(0.3);
-        for (const lang of cv.languagesData) {
+        for (const lang of languagesData) {
           const cert = lang.certificate ? ` [${lang.certificate}]` : '';
           doc.fontSize(9).fillColor('#0f172a').font('Helvetica-Bold').text(`${lang.language}: `, { continued: true });
           doc.fontSize(9).fillColor('#334155').font('Helvetica').text(`CEFR Level ${lang.level}${cert}`);

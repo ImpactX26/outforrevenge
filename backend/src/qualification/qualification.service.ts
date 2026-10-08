@@ -1,10 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { QualificationRequirement } from '../database/entities/qualification-requirement.entity';
-import { QualificationAssessment } from '../database/entities/qualification-assessment.entity';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
-import { Document } from '../database/entities/document.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import {
   GoalType,
@@ -12,26 +7,31 @@ import {
   DocumentType,
 } from '../common/enums';
 
+export interface RuleEvaluationResult {
+  isSatisfied: boolean;
+  hasInsufficientEvidence?: boolean;
+  evidence: string;
+  remediationAction: string;
+}
+
 @Injectable()
 export class QualificationService {
   private readonly logger = new Logger(QualificationService.name);
 
   constructor(
-    @InjectRepository(QualificationRequirement)
-    private readonly requirementRepo: Repository<QualificationRequirement>,
-    @InjectRepository(QualificationAssessment)
-    private readonly assessmentRepo: Repository<QualificationAssessment>,
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
-    @InjectRepository(Document)
-    private readonly documentRepo: Repository<Document>,
+    private readonly prisma: PrismaService,
     private readonly aiService: AiService,
   ) {}
 
-  async evaluateApplicant(applicantId: string, parentExecutionId?: string): Promise<QualificationAssessment> {
-    const profile = await this.profileRepo.findOne({
+  async evaluateApplicant(applicantId: string, parentExecutionId?: string): Promise<any> {
+    const profile = await this.prisma.applicantProfile.findUnique({
       where: { userId: applicantId },
-      relations: ['educations', 'employments', 'skills', 'languages'],
+      include: {
+        educations: true,
+        employments: true,
+        skills: true,
+        languages: true,
+      },
     });
 
     if (!profile) {
@@ -41,26 +41,31 @@ export class QualificationService {
     const pathway = profile.currentGoal || GoalType.AUSBILDUNG;
 
     // Load database-backed requirements for pathway
-    const requirements = await this.requirementRepo.find({
+    const requirements = await this.prisma.qualificationRequirement.findMany({
       where: { pathway },
-      order: { weight: 'DESC' },
+      orderBy: { weight: 'desc' },
     });
 
-    const documents = await this.documentRepo.find({
+    const documents = await this.prisma.document.findMany({
       where: { applicantId },
     });
 
-    // Run DETERMINISTIC evaluation
+    // Run DETERMINISTIC evaluation with specific evidence
     const satisfied: Array<{ id?: string; ruleCode: string; title: string; evidence: string }> = [];
     const missing: Array<{ id?: string; ruleCode: string; title: string; description: string; impact: string; remediationAction: string }> = [];
     const warnings: string[] = [];
 
     let totalWeight = 0;
     let earnedWeight = 0;
+    let insufficientEvidenceCount = 0;
 
     for (const req of requirements) {
       totalWeight += req.weight;
       const result = this.evaluateSingleRule(req, profile, documents);
+
+      if (result.hasInsufficientEvidence) {
+        insufficientEvidenceCount++;
+      }
 
       if (result.isSatisfied) {
         earnedWeight += req.weight;
@@ -87,19 +92,21 @@ export class QualificationService {
 
     const rawScore = totalWeight > 0 ? Math.round((earnedWeight / totalWeight) * 100) : 0;
 
-    // Determine status deterministically
+    // Determine status deterministically based on rigorous rules
     let status: QualificationStatus;
     const hasRequiredMissing = missing.some((m) => {
       const originalReq = requirements.find((r) => r.ruleCode === m.ruleCode);
       return originalReq?.required;
     });
 
-    if (!hasRequiredMissing) {
+    const hasBasicProfileInfo = (profile.educations && profile.educations.length > 0) || (documents && documents.length > 0);
+
+    if (!hasBasicProfileInfo || insufficientEvidenceCount >= Math.ceil(requirements.length / 2)) {
+      status = QualificationStatus.MORE_INFORMATION_REQUIRED;
+    } else if (!hasRequiredMissing) {
       status = QualificationStatus.QUALIFIED;
     } else if (rawScore >= 50) {
       status = QualificationStatus.PARTIALLY_QUALIFIED;
-    } else if (!profile.educations?.length && !profile.languages?.length) {
-      status = QualificationStatus.MORE_INFORMATION_REQUIRED;
     } else {
       status = QualificationStatus.NOT_CURRENTLY_QUALIFIED;
     }
@@ -111,11 +118,11 @@ Status: ${status}
 Score: ${rawScore}/100
 Satisfied Criteria: ${JSON.stringify(satisfied)}
 Missing Criteria: ${JSON.stringify(missing)}
-Explain this result clearly to the applicant. State why requirements were satisfied or missed and recommend actionable steps.`;
+Explain this result clearly to the applicant. State why requirements were satisfied or missed based on the evidence, and recommend actionable next steps. Do NOT change the score or status.`;
 
     let aiExplanation = '';
     try {
-      const { data } = await this.aiService.runAgentStructured<any>(
+      const aiResponse = await this.aiService.runAgentStructured<any>(
         'QUALIFICATION',
         applicantId,
         explainerPrompt,
@@ -123,67 +130,75 @@ Explain this result clearly to the applicant. State why requirements were satisf
         parentExecutionId,
         'QUALIFICATION_ENGINE',
       );
-      aiExplanation = data?.explanation || '';
-    } catch (e) {
-      aiExplanation = `Your qualification assessment shows a readiness score of ${rawScore}%. While your educational credentials satisfy requirements, critical criteria such as German B1 must be fulfilled before application submission.`;
+      aiExplanation = aiResponse?.data?.explanation || '';
+    } catch (e: any) {
+      aiExplanation = `Your qualification assessment for the ${pathway} pathway resulted in a score of ${rawScore}%. Evaluated status: ${status}. Please review missing requirements for next steps.`;
     }
 
-    const assessment = this.assessmentRepo.create({
-      applicantId,
-      status,
-      score: rawScore,
-      satisfiedRequirements: satisfied,
-      missingRequirements: missing,
-      warnings,
-      evidence: {
-        evaluatedPathways: pathway,
-        totalRequirementsCount: requirements.length,
-        satisfiedCount: satisfied.length,
-        missingCount: missing.length,
-      },
-      aiExplanation,
-      evaluatedAt: new Date(),
+    // Atomic transaction: save assessment and update profile readiness score
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const assessment = await tx.qualificationAssessment.create({
+        data: {
+          applicantId,
+          status,
+          score: rawScore,
+          satisfiedRequirements: satisfied,
+          missingRequirements: missing,
+          warnings,
+          evidence: {
+            evaluatedPathways: pathway,
+            totalRequirementsCount: requirements.length,
+            satisfiedCount: satisfied.length,
+            missingCount: missing.length,
+            insufficientEvidenceCount,
+          },
+          aiExplanation,
+          evaluatedAt: new Date(),
+        },
+      });
+
+      await tx.applicantProfile.update({
+        where: { userId: applicantId },
+        data: { readinessScore: rawScore },
+      });
+
+      return assessment;
     });
-
-    const saved = await this.assessmentRepo.save(assessment);
-
-    // Update profile readiness score
-    profile.readinessScore = rawScore;
-    await this.profileRepo.save(profile);
 
     return saved;
   }
 
-  async getLatestAssessment(applicantId: string): Promise<QualificationAssessment | null> {
-    return this.assessmentRepo.findOne({
+  async getLatestAssessment(applicantId: string): Promise<any | null> {
+    return this.prisma.qualificationAssessment.findFirst({
       where: { applicantId },
-      order: { evaluatedAt: 'DESC' },
+      orderBy: { evaluatedAt: 'desc' },
     });
   }
 
-  async getAssessmentHistory(applicantId: string): Promise<QualificationAssessment[]> {
-    return this.assessmentRepo.find({
+  async getAssessmentHistory(applicantId: string): Promise<any[]> {
+    return this.prisma.qualificationAssessment.findMany({
       where: { applicantId },
-      order: { evaluatedAt: 'DESC' },
+      orderBy: { evaluatedAt: 'desc' },
       take: 10,
     });
   }
 
-  private evaluateSingleRule(
-    req: QualificationRequirement,
-    profile: ApplicantProfile,
-    documents: Document[],
-  ): { isSatisfied: boolean; evidence: string; remediationAction: string } {
+  public evaluateSingleRule(
+    req: { ruleCode: string; title: string; description: string; minimumLevel?: string | null },
+    profile: { educations?: any[]; employments?: any[]; languages?: any[]; skills?: any[] },
+    documents: any[],
+  ): RuleEvaluationResult {
     const code = req.ruleCode.toUpperCase();
 
     // 1. German language checks
-    if (code.includes('GERMAN_B1')) {
+    if (code.includes('GERMAN_B1') || (code.includes('GERMAN') && req.minimumLevel === 'B1')) {
       const german = profile.languages?.find((l) => l.language.toLowerCase().includes('german'));
       if (!german) {
         return {
           isSatisfied: false,
-          evidence: 'No German language record found.',
-          remediationAction: 'Upload Goethe/TELC German B1 certificate or join Educaro German Language Academy.',
+          hasInsufficientEvidence: true,
+          evidence: 'No German language record found in profile.',
+          remediationAction: 'Upload Goethe/TELC German B1 certificate or enroll in Educaro German Language Academy.',
         };
       }
       const level = german.proficiencyLevel.toUpperCase();
@@ -191,83 +206,248 @@ Explain this result clearly to the applicant. State why requirements were satisf
       if (validLevels.includes(level)) {
         return {
           isSatisfied: true,
-          evidence: `Verified German language proficiency at level ${german.proficiencyLevel}.`,
+          evidence: `Verified German proficiency at level ${german.proficiencyLevel} (${german.certificateType || 'Self-declared'}).`,
           remediationAction: '',
         };
       }
       return {
         isSatisfied: false,
-        evidence: `Current German level is ${german.proficiencyLevel}, but B1 is required.`,
-        remediationAction: 'Advance German level from ' + german.proficiencyLevel + ' to B1.',
+        evidence: `Current German level is ${german.proficiencyLevel}, which does not satisfy the required B1 minimum level.`,
+        remediationAction: `Advance German language skills from ${german.proficiencyLevel} to B1.`,
       };
     }
 
-    if (code.includes('GERMAN_A1') || code.includes('GERMAN_A2')) {
+    if (code.includes('GERMAN_A2') || (code.includes('GERMAN') && req.minimumLevel === 'A2')) {
       const german = profile.languages?.find((l) => l.language.toLowerCase().includes('german'));
-      if (german) {
-        return { isSatisfied: true, evidence: `German level ${german.proficiencyLevel} recorded.`, remediationAction: '' };
+      if (!german) {
+        return {
+          isSatisfied: false,
+          hasInsufficientEvidence: true,
+          evidence: 'No German language record found in profile.',
+          remediationAction: 'Upload Goethe/TELC German A2 certificate or start German lessons.',
+        };
       }
-      return { isSatisfied: false, evidence: 'No German language certificate on file.', remediationAction: 'Begin basic German A1 learning.' };
+      const level = german.proficiencyLevel.toUpperCase();
+      const validLevels = ['A2', 'B1', 'B2', 'C1', 'C2', 'NATIVE'];
+      if (validLevels.includes(level)) {
+        return {
+          isSatisfied: true,
+          evidence: `Verified German language at level ${german.proficiencyLevel}.`,
+          remediationAction: '',
+        };
+      }
+      return {
+        isSatisfied: false,
+        evidence: `Current German level is ${german.proficiencyLevel}, which does not meet A2.`,
+        remediationAction: 'Complete German A2 coursework and obtain certification.',
+      };
+    }
+
+    if (code.includes('GERMAN_A1') || (code.includes('GERMAN') && req.minimumLevel === 'A1')) {
+      const german = profile.languages?.find((l) => l.language.toLowerCase().includes('german'));
+      if (german && german.proficiencyLevel) {
+        return {
+          isSatisfied: true,
+          evidence: `Basic German recorded: ${german.proficiencyLevel}.`,
+          remediationAction: '',
+        };
+      }
+      return {
+        isSatisfied: false,
+        hasInsufficientEvidence: true,
+        evidence: 'No German language certificate or level on file.',
+        remediationAction: 'Begin German A1 foundational preparation.',
+      };
     }
 
     // 2. English proficiency checks
-    if (code.includes('ENGLISH_PROFICIENCY')) {
+    if (code.includes('ENGLISH')) {
       const english = profile.languages?.find((l) => l.language.toLowerCase().includes('english'));
-      if (english) {
-        return { isSatisfied: true, evidence: `English proficiency verified: ${english.proficiencyLevel} (${english.certificateType || 'Fluent'}).`, remediationAction: '' };
+      if (!english) {
+        return {
+          isSatisfied: false,
+          hasInsufficientEvidence: true,
+          evidence: 'No English language record found in profile.',
+          remediationAction: 'Upload IELTS (6.5+), TOEFL (90+), or proof of English medium of instruction.',
+        };
       }
-      return { isSatisfied: false, evidence: 'No English certificate provided.', remediationAction: 'Provide IELTS (6.5+) or TOEFL (90+) score report.' };
-    }
-
-    // 3. Educational degree / 12th standard checks
-    if (code.includes('SCHOOL_12TH') || code.includes('RECOGNIZED_BACHELOR') || code.includes('DEGREE_COMPARABILITY')) {
-      if (profile.educations && profile.educations.length > 0) {
-        const topEdu = profile.educations[0];
+      const lvl = english.proficiencyLevel.toUpperCase();
+      const validLvl = ['B2', 'C1', 'C2', 'FLUENT', 'NATIVE', 'ADVANCED'];
+      if (validLvl.includes(lvl) || (english.certificateType && english.certificateType.length > 2)) {
         return {
           isSatisfied: true,
-          evidence: `${topEdu.degree} from ${topEdu.institution} (${topEdu.gradeOrCgpa || 'Verified'}).`,
+          evidence: `Verified English proficiency: ${english.proficiencyLevel} (${english.certificateType || 'Verified'}).`,
           remediationAction: '',
         };
       }
       return {
         isSatisfied: false,
-        evidence: 'No formal degree or school marksheet found in profile.',
-        remediationAction: 'Upload official Degree Certificate or 12th standard marksheet.',
+        evidence: `English proficiency level is ${english.proficiencyLevel}, higher proficiency required.`,
+        remediationAction: 'Obtain an accepted English test score report (IELTS/TOEFL).',
       };
     }
 
-    // 4. APS certificate
-    if (code.includes('APS_CERTIFICATE')) {
-      const hasApsDoc = documents.some((d) => d.documentType === DocumentType.CERTIFICATE && d.filename.toLowerCase().includes('aps'));
-      if (hasApsDoc) {
-        return { isSatisfied: true, evidence: 'APS India verification certificate verified.', remediationAction: '' };
-      }
-      return { isSatisfied: false, evidence: 'APS Certificate not detected in uploads.', remediationAction: 'Apply for and upload APS Certificate India.' };
-    }
+    // 3. Recognized Bachelor degree
+    if (code.includes('RECOGNIZED_BACHELOR') || code.includes('BACHELOR')) {
+      const bachelorDegree = profile.educations?.find((e) => {
+        const d = (e.degree || '').toLowerCase();
+        return (
+          d.includes('bachelor') ||
+          d.includes('b.tech') ||
+          d.includes('b.e') ||
+          d.includes('b.sc') ||
+          d.includes('bca') ||
+          d.includes('bba') ||
+          d.includes('undergraduate')
+        );
+      });
 
-    // 5. Work experience
-    if (code.includes('EXPERIENCE')) {
-      if (profile.employments && profile.employments.length > 0) {
-        return { isSatisfied: true, evidence: `Documented experience at ${profile.employments[0].companyName}.`, remediationAction: '' };
+      if (bachelorDegree) {
+        return {
+          isSatisfied: true,
+          evidence: `Undergraduate degree verified: ${bachelorDegree.degree} in ${bachelorDegree.fieldOfStudy} from ${bachelorDegree.institution} (Grade: ${bachelorDegree.gradeOrCgpa || 'Recorded'}).`,
+          remediationAction: '',
+        };
       }
-      return { isSatisfied: false, evidence: 'No employment experience records.', remediationAction: 'Upload experience letters or internship proof.' };
-    }
 
-    // 6. Passport / Media
-    if (code.includes('PASSPORT') || code.includes('VALID')) {
-      const hasDoc = documents.length > 0;
       return {
-        isSatisfied: hasDoc,
-        evidence: hasDoc ? 'Identification documentation uploaded.' : 'Identification missing.',
-        remediationAction: 'Upload valid passport copy.',
+        isSatisfied: false,
+        hasInsufficientEvidence: true,
+        evidence: 'No recognized Bachelor degree found in applicant educational records.',
+        remediationAction: 'Upload verified Bachelor degree certificate or transcript recognized under Anabin.',
       };
     }
 
-    // Default fallback
+    // 4. 12th Standard / Higher Secondary School
+    if (code.includes('SCHOOL_12TH') || code.includes('SECONDARY')) {
+      const schoolRecord = profile.educations?.find((e) => {
+        const deg = (e.degree || '').toLowerCase();
+        const inst = (e.institution || '').toLowerCase();
+        return (
+          deg.includes('12') ||
+          deg.includes('higher secondary') ||
+          deg.includes('hsc') ||
+          deg.includes('intermediate') ||
+          deg.includes('senior secondary') ||
+          deg.includes('school') ||
+          inst.includes('school') ||
+          inst.includes('junior college') ||
+          // If applicant has a bachelor degree, 12th standard is inherently satisfied
+          deg.includes('bachelor') ||
+          deg.includes('b.tech') ||
+          deg.includes('b.e')
+        );
+      });
+
+      if (schoolRecord) {
+        return {
+          isSatisfied: true,
+          evidence: `Secondary school qualification verified: ${schoolRecord.degree} from ${schoolRecord.institution}.`,
+          remediationAction: '',
+        };
+      }
+
+      return {
+        isSatisfied: false,
+        hasInsufficientEvidence: true,
+        evidence: 'No 12th standard or higher secondary school credential found in profile.',
+        remediationAction: 'Upload 12th Standard / HSC marksheet.',
+      };
+    }
+
+    // 5. Degree comparability / Anabin
+    if (code.includes('DEGREE_COMPARABILITY')) {
+      const eduWithInstitution = profile.educations?.find((e) => Boolean(e.institution && e.degree));
+      if (eduWithInstitution) {
+        return {
+          isSatisfied: true,
+          evidence: `Degree comparability established for ${eduWithInstitution.degree} from ${eduWithInstitution.institution}.`,
+          remediationAction: '',
+        };
+      }
+      return {
+        isSatisfied: false,
+        hasInsufficientEvidence: true,
+        evidence: 'Insufficient educational data to evaluate Anabin H+ university comparability.',
+        remediationAction: 'Provide full institution and degree details recognized on Anabin database.',
+      };
+    }
+
+    // 6. APS Certificate
+    if (code.includes('APS')) {
+      const apsDoc = documents.find(
+        (d) =>
+          d.documentType === DocumentType.CERTIFICATE &&
+          (d.filename.toLowerCase().includes('aps') || d.filename.toLowerCase().includes('akademische')),
+      );
+
+      if (apsDoc) {
+        return {
+          isSatisfied: true,
+          evidence: `APS India certificate detected and verified: ${apsDoc.filename}.`,
+          remediationAction: '',
+        };
+      }
+
+      return {
+        isSatisfied: false,
+        hasInsufficientEvidence: true,
+        evidence: 'APS verification certificate not found in uploaded documents.',
+        remediationAction: 'Apply for APS India verification certificate and upload the digital certificate.',
+      };
+    }
+
+    // 7. Work experience requirement
+    if (code.includes('EXPERIENCE')) {
+      const hasExperience = profile.employments && profile.employments.length > 0;
+      if (hasExperience) {
+        const exp = profile.employments![0];
+        return {
+          isSatisfied: true,
+          evidence: `Verified professional employment: ${exp.role} at ${exp.companyName} (${exp.startDate || 'Recorded'} - ${exp.endDate || 'Present'}).`,
+          remediationAction: '',
+        };
+      }
+
+      return {
+        isSatisfied: false,
+        hasInsufficientEvidence: true,
+        evidence: 'No professional work experience or internship records documented in profile.',
+        remediationAction: 'Add employment experience or upload verified experience letters.',
+      };
+    }
+
+    // 8. Passport / Identification
+    if (code.includes('PASSPORT') || code.includes('ID')) {
+      const passportDoc = documents.find(
+        (d) =>
+          d.filename.toLowerCase().includes('passport') ||
+          d.documentType === DocumentType.OTHER ||
+          d.documentType === DocumentType.CERTIFICATE,
+      );
+
+      if (passportDoc) {
+        return {
+          isSatisfied: true,
+          evidence: `Identification document verified: ${passportDoc.filename}.`,
+          remediationAction: '',
+        };
+      }
+
+      return {
+        isSatisfied: false,
+        hasInsufficientEvidence: true,
+        evidence: 'Valid passport copy not found in document uploads.',
+        remediationAction: 'Upload scanned copy of valid international passport (first and last page).',
+      };
+    }
+
+    // Explicit default: NEVER assume satisfied without evidence!
     return {
-      isSatisfied: true,
-      evidence: 'Requirement verified against general criteria.',
-      remediationAction: '',
+      isSatisfied: false,
+      hasInsufficientEvidence: true,
+      evidence: `No verified evidence on file for rule requirement '${req.title}'.`,
+      remediationAction: `Upload verified documentation supporting requirement '${req.title}'.`,
     };
   }
 }

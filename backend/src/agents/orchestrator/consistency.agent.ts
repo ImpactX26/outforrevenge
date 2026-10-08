@@ -1,10 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ApplicantProfile } from '../../database/entities/applicant-profile.entity';
-import { Document } from '../../database/entities/document.entity';
-import { Video } from '../../database/entities/video.entity';
-import { ConsultantReview } from '../../database/entities/consultant-review.entity';
+import { PrismaService } from '../../prisma/prisma.service';
 import { ReviewStatus } from '../../common/enums';
 import { AiService } from '../../ai/ai.service';
 
@@ -26,22 +21,21 @@ export class ConsistencyAgent {
   private readonly logger = new Logger(ConsistencyAgent.name);
 
   constructor(
-    @InjectRepository(ConsultantReview)
-    private readonly reviewRepo: Repository<ConsultantReview>,
+    private readonly prisma: PrismaService,
     private readonly aiService: AiService,
   ) {}
 
   async checkConsistency(
-    profile: ApplicantProfile,
-    documents: Document[],
-    videos: Video[],
+    profile: any,
+    documents: any[],
+    videos: any[],
     parentExecutionId?: string,
   ): Promise<ConsistencyCheckResult> {
     const findings: ConsistencyCheckResult['findings'] = [];
 
     // 1. Deterministic checks
-    const claimedGerman = profile.languages?.find((l) => l.language.toLowerCase().includes('german'));
-    const langDocs = documents.filter((d) => d.documentType === 'LANGUAGE_CERTIFICATE' && d.extraction);
+    const claimedGerman = profile.languages?.find((l: any) => l.language.toLowerCase().includes('german'));
+    const langDocs = documents.filter((d: any) => d.documentType === 'LANGUAGE_CERTIFICATE' && d.extraction);
 
     if (claimedGerman && langDocs.length > 0) {
       const docLevel = langDocs[0].extraction?.extractedJson?.level;
@@ -60,15 +54,15 @@ export class ConsistencyAgent {
     // 2. AI Semantic Comparison
     const prompt = `Compare applicant self-reported data against verified documents:
 Applicant: ${profile.user?.firstName} ${profile.user?.lastName}
-Educations: ${JSON.stringify(profile.educations?.map((e) => ({ degree: e.degree, institution: e.institution })))}
-Claimed Languages: ${JSON.stringify(profile.languages?.map((l) => ({ lang: l.language, level: l.proficiencyLevel })))}
-Extracted Documents: ${JSON.stringify(documents.map((d) => ({ type: d.documentType, data: d.extraction?.extractedJson })))}
+Educations: ${JSON.stringify(profile.educations?.map((e: any) => ({ degree: e.degree, institution: e.institution })))}
+Claimed Languages: ${JSON.stringify(profile.languages?.map((l: any) => ({ lang: l.language, level: l.proficiencyLevel })))}
+Extracted Documents: ${JSON.stringify(documents.map((d: any) => ({ type: d.documentType, data: d.extraction?.extractedJson })))}
 Video Transcript: ${videos[0]?.transcript || 'None'}
 
 Are there conflicting statements? Ground your answer strictly in the text. Return structured JSON with: hasInconsistencies, findings: [{field, reportedValue, extractedValue, severity, message, requiresConsultant}], summary.`;
 
     try {
-      const { data } = await this.aiService.runAgentStructured<any>(
+      const aiResponse = await this.aiService.runAgentStructured<any>(
         'CONSISTENCY',
         profile.userId,
         prompt,
@@ -77,6 +71,7 @@ Are there conflicting statements? Ground your answer strictly in the text. Retur
         'CONSISTENCY_AGENT',
       );
 
+      const data = aiResponse?.data;
       if (data?.findings && Array.isArray(data.findings)) {
         for (const item of data.findings) {
           if (!findings.some((f) => f.field === item.field)) {
@@ -84,7 +79,7 @@ Are there conflicting statements? Ground your answer strictly in the text. Retur
           }
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       this.logger.warn(`AI consistency comparison fallback: ${e.message}`);
     }
 
@@ -96,12 +91,12 @@ Are there conflicting statements? Ground your answer strictly in the text. Retur
     // Escalate high severity to ConsultantReview
     const criticalFindings = findings.filter((f) => f.requiresConsultant || f.severity === 'HIGH');
     if (criticalFindings.length > 0) {
-      const existingReview = await this.reviewRepo.findOne({
+      const existingReview = await this.prisma.consultantReview.findFirst({
         where: { applicantId: profile.userId, status: ReviewStatus.PENDING },
       });
       if (!existingReview) {
-        await this.reviewRepo.save(
-          this.reviewRepo.create({
+        await this.prisma.consultantReview.create({
+          data: {
             applicantId: profile.userId,
             issue: 'Profile & Document Discrepancy',
             reason: criticalFindings[0].message,
@@ -110,8 +105,8 @@ Are there conflicting statements? Ground your answer strictly in the text. Retur
             confidence: 0.88,
             recommendedAction: 'Verify original documents with applicant.',
             status: ReviewStatus.PENDING,
-          }),
-        );
+          },
+        });
       }
     }
 

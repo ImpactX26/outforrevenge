@@ -2,11 +2,9 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { InterviewSession } from '../database/entities/interview-session.entity';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { GoalType } from '../common/enums';
 import { AiService } from '../ai/ai.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,10 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class InterviewsService {
   constructor(
-    @InjectRepository(InterviewSession)
-    private readonly sessionRepo: Repository<InterviewSession>,
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
+    private readonly prisma: PrismaService,
     private readonly aiService: AiService,
   ) {}
 
@@ -25,12 +20,7 @@ export class InterviewsService {
     applicantId: string,
     pathway: GoalType,
     targetRole?: string,
-  ): Promise<InterviewSession> {
-    const profile = await this.profileRepo.findOne({
-      where: { userId: applicantId },
-      relations: ['educations', 'skills', 'languages'],
-    });
-
+  ): Promise<any> {
     const roleName = targetRole || (pathway === GoalType.AUSBILDUNG
       ? 'Fachinformatiker für Anwendungsentwicklung'
       : pathway === GoalType.STUDY
@@ -58,16 +48,16 @@ export class InterviewsService {
       },
     ];
 
-    const session = this.sessionRepo.create({
-      applicantId,
-      pathway,
-      targetRole: roleName,
-      questions,
-      answers: [],
-      feedback: [],
+    return this.prisma.interviewSession.create({
+      data: {
+        applicantId,
+        pathway,
+        targetRole: roleName,
+        questions,
+        answers: [],
+        feedback: [],
+      },
     });
-
-    return this.sessionRepo.save(session);
   }
 
   async submitAnswer(
@@ -75,12 +65,13 @@ export class InterviewsService {
     applicantId: string,
     questionId: string,
     answerText: string,
-  ): Promise<InterviewSession> {
-    const session = await this.sessionRepo.findOne({ where: { id: sessionId } });
+  ): Promise<any> {
+    const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (!session) throw new NotFoundException('Interview session not found');
     if (session.applicantId !== applicantId) throw new ForbiddenException('Unauthorized access');
 
-    const questionObj = session.questions.find((q) => q.id === questionId);
+    const questions = session.questions as any[];
+    const questionObj = questions.find((q) => q.id === questionId);
     if (!questionObj) throw new NotFoundException('Question not found in session');
 
     // AI evaluation
@@ -90,60 +81,73 @@ Candidate Answer:
 "${answerText}"
 
 Evaluate this answer. Return structured JSON with:
-relevance (0-100), clarity (0-100), structure (0-100), missingPoints (array of strings), improvements (array of strings), summary (string).
+relevance (number 0-100), clarity (number 0-100), structure (number 0-100), missingPoints (array of strings), improvements (array of strings), summary (string).
 Do NOT promise hiring decisions or visa guarantees.`;
 
-    const { data } = await this.aiService.runAgentStructured<any>(
+    const aiResponse = await this.aiService.runAgentStructured<any>(
       'INTERVIEW',
       applicantId,
       prompt,
     );
 
-    // Save answer
-    const existingAnsIndex = session.answers.findIndex((a) => a.questionId === questionId);
+    const data = aiResponse?.data;
+    if (!data) {
+      throw new BadRequestException('AI feedback generation failed. Please retry.');
+    }
+
+    const answers = [...((session.answers as any[]) || [])];
+    const existingAnsIndex = answers.findIndex((a) => a.questionId === questionId);
     const newAnswer = {
       questionId,
       answerText,
       submittedAt: new Date().toISOString(),
     };
     if (existingAnsIndex >= 0) {
-      session.answers[existingAnsIndex] = newAnswer;
+      answers[existingAnsIndex] = newAnswer;
     } else {
-      session.answers.push(newAnswer);
+      answers.push(newAnswer);
     }
 
-    // Save feedback
+    const feedbacks = [...((session.feedback as any[]) || [])];
     const newFeedback = {
       questionId,
-      relevance: data?.relevance || 88,
-      clarity: data?.clarity || 85,
-      structure: data?.structure || 82,
-      missingPoints: data?.missingPoints || ['Consider citing specific examples from your prior projects.'],
-      improvements: data?.improvements || ['Add structure: Situation, Task, Action, Result (STAR method).'],
-      summary: data?.summary || 'Good foundational response demonstrating clear interest.',
+      relevance: typeof data.relevance === 'number' ? data.relevance : 85,
+      clarity: typeof data.clarity === 'number' ? data.clarity : 80,
+      structure: typeof data.structure === 'number' ? data.structure : 80,
+      missingPoints: Array.isArray(data.missingPoints) ? data.missingPoints : [],
+      improvements: Array.isArray(data.improvements) ? data.improvements : [],
+      summary: data.summary || 'Answer evaluated against professional German interview benchmarks.',
     };
 
-    const existingFbIndex = (session.feedback || []).findIndex((f) => f.questionId === questionId);
-    if (!session.feedback) session.feedback = [];
+    const existingFbIndex = feedbacks.findIndex((f) => f.questionId === questionId);
     if (existingFbIndex >= 0) {
-      session.feedback[existingFbIndex] = newFeedback;
+      feedbacks[existingFbIndex] = newFeedback;
     } else {
-      session.feedback.push(newFeedback);
+      feedbacks.push(newFeedback);
     }
 
     // Calculate overall average
-    const totalScore = session.feedback.reduce((sum, f) => sum + (f.relevance + f.clarity + f.structure) / 3, 0);
-    session.overallScore = Math.round(totalScore / session.feedback.length);
+    const totalScore = feedbacks.reduce((sum, f) => sum + (f.relevance + f.clarity + f.structure) / 3, 0);
+    const overallScore = Math.round(totalScore / feedbacks.length);
 
-    if (session.answers.length >= session.questions.length) {
-      session.completedAt = new Date();
+    let completedAt = session.completedAt;
+    if (answers.length >= questions.length && !completedAt) {
+      completedAt = new Date();
     }
 
-    return this.sessionRepo.save(session);
+    return this.prisma.interviewSession.update({
+      where: { id: sessionId },
+      data: {
+        answers,
+        feedback: feedbacks,
+        overallScore,
+        completedAt,
+      },
+    });
   }
 
-  async getSession(sessionId: string, applicantId: string): Promise<InterviewSession> {
-    const session = await this.sessionRepo.findOne({ where: { id: sessionId } });
+  async getSession(sessionId: string, applicantId: string): Promise<any> {
+    const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (!session) throw new NotFoundException('Session not found');
     if (session.applicantId !== applicantId) throw new ForbiddenException('Unauthorized access');
     return session;

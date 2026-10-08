@@ -1,13 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { NextStepRecommendation } from '../database/entities/next-step-recommendation.entity';
-import { EducaroService } from '../database/entities/educaro-service.entity';
-import { RoutingRule } from '../database/entities/routing-rule.entity';
-import { QualificationAssessment } from '../database/entities/qualification-assessment.entity';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
-import { ConsultantReview } from '../database/entities/consultant-review.entity';
-import { Notification } from '../database/entities/notification.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   RecommendationType,
   RecommendationStatus,
@@ -20,31 +12,18 @@ export class RecommendationsService {
   private readonly logger = new Logger(RecommendationsService.name);
 
   constructor(
-    @InjectRepository(NextStepRecommendation)
-    private readonly recRepo: Repository<NextStepRecommendation>,
-    @InjectRepository(EducaroService)
-    private readonly serviceRepo: Repository<EducaroService>,
-    @InjectRepository(RoutingRule)
-    private readonly ruleRepo: Repository<RoutingRule>,
-    @InjectRepository(QualificationAssessment)
-    private readonly assessmentRepo: Repository<QualificationAssessment>,
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
-    @InjectRepository(ConsultantReview)
-    private readonly reviewRepo: Repository<ConsultantReview>,
-    @InjectRepository(Notification)
-    private readonly notifRepo: Repository<Notification>,
+    private readonly prisma: PrismaService,
     private readonly aiService: AiService,
   ) {}
 
-  async getEducaroServices(): Promise<EducaroService[]> {
-    return this.serviceRepo.find({ order: { createdAt: 'ASC' } });
+  async getEducaroServices(): Promise<any[]> {
+    return this.prisma.educaroService.findMany({ orderBy: { createdAt: 'asc' } });
   }
 
-  async getLatestRecommendation(applicantId: string): Promise<NextStepRecommendation | null> {
-    const rec = await this.recRepo.findOne({
+  async getLatestRecommendation(applicantId: string): Promise<any | null> {
+    const rec = await this.prisma.nextStepRecommendation.findFirst({
       where: { applicantId, status: RecommendationStatus.ACTIVE },
-      order: { createdAt: 'DESC' },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!rec) {
@@ -54,31 +33,25 @@ export class RecommendationsService {
     return rec;
   }
 
-  async refreshRecommendation(applicantId: string, parentExecutionId?: string): Promise<NextStepRecommendation> {
-    const profile = await this.profileRepo.findOne({ where: { userId: applicantId } });
+  async refreshRecommendation(applicantId: string, parentExecutionId?: string): Promise<any> {
+    const profile = await this.prisma.applicantProfile.findUnique({ where: { userId: applicantId } });
     if (!profile) {
       throw new NotFoundException('Applicant profile not found');
     }
 
-    const latestAssessment = await this.assessmentRepo.findOne({
+    const latestAssessment = await this.prisma.qualificationAssessment.findFirst({
       where: { applicantId },
-      order: { evaluatedAt: 'DESC' },
+      orderBy: { evaluatedAt: 'desc' },
     });
 
-    const openReview = await this.reviewRepo.findOne({
+    const openReview = await this.prisma.consultantReview.findFirst({
       where: { applicantId, status: ReviewStatus.PENDING },
     });
 
-    const rules = await this.ruleRepo.find({
-      order: { priority: 'DESC' },
-      relations: ['targetService'],
+    const rules = await this.prisma.routingRule.findMany({
+      orderBy: { priority: 'desc' },
+      include: { targetService: true },
     });
-
-    // Supersede existing ACTIVE recommendations
-    await this.recRepo.update(
-      { applicantId, status: RecommendationStatus.ACTIVE },
-      { status: RecommendationStatus.SUPERSEDED },
-    );
 
     let chosenType = RecommendationType.EDUCARO_SERVICE;
     let targetId: string | null = null;
@@ -95,20 +68,24 @@ export class RecommendationsService {
       evidence = { reviewIssue: openReview.issue };
     } else {
       // Evaluate database-backed routing rules
-      let matchedRule: RoutingRule | null = null;
+      let matchedRule: any = null;
+
+      const missingReqs = Array.isArray(latestAssessment?.missingRequirements)
+        ? (latestAssessment.missingRequirements as any[])
+        : [];
 
       for (const rule of rules) {
         if (rule.conditionType === 'MISSING_LANGUAGE') {
-          const hasMissingLang = latestAssessment?.missingRequirements?.some((m) =>
-            m.ruleCode.includes('GERMAN'),
+          const hasMissingLang = missingReqs.some((m) =>
+            m.ruleCode && m.ruleCode.includes('GERMAN'),
           );
           if (hasMissingLang) {
             matchedRule = rule;
             break;
           }
         } else if (rule.conditionType === 'MISSING_DOCUMENTS') {
-          const hasMissingDocs = latestAssessment?.missingRequirements?.some((m) =>
-            m.ruleCode.includes('APS') || m.ruleCode.includes('DEGREE'),
+          const hasMissingDocs = missingReqs.some((m) =>
+            m.ruleCode && (m.ruleCode.includes('APS') || m.ruleCode.includes('DEGREE')),
           );
           if (hasMissingDocs) {
             matchedRule = rule;
@@ -130,7 +107,7 @@ export class RecommendationsService {
         evidence = { ruleName: matchedRule.name, priority: matchedRule.priority };
       } else {
         // Fallback to primary Educaro Language or counseling service
-        const defaultService = await this.serviceRepo.findOne({
+        const defaultService = await this.prisma.educaroService.findFirst({
           where: { category: 'LANGUAGE_PREPARATION' },
         });
         if (defaultService) {
@@ -152,7 +129,7 @@ Current Goal: ${profile.currentGoal}
 Explain clearly to the applicant what this step accomplishes in the Educaro ecosystem and why it accelerates their journey to Germany.`;
 
     try {
-      const { data } = await this.aiService.runAgentStructured<any>(
+      const aiResponse = await this.aiService.runAgentStructured<any>(
         'ROUTING',
         applicantId,
         prompt,
@@ -160,52 +137,66 @@ Explain clearly to the applicant what this step accomplishes in the Educaro ecos
         parentExecutionId,
         'ROUTING_AGENT',
       );
-      if (data?.reason) {
-        reason = data.reason;
+      if (aiResponse?.data?.reason) {
+        reason = aiResponse.data.reason;
       }
-    } catch (e) {
+    } catch (e: any) {
       // keep deterministic base reason
     }
 
-    const recommendation = this.recRepo.create({
-      applicantId,
-      type: chosenType,
-      targetId: targetId || undefined,
-      title,
-      reason,
-      supportingEvidence: evidence,
-      confidence: 0.96,
-      status: RecommendationStatus.ACTIVE,
+    // Atomic transaction for superseding previous recommendations, saving new, and notifying
+    const saved = await this.prisma.$transaction(async (tx) => {
+      await tx.nextStepRecommendation.updateMany({
+        where: { applicantId, status: RecommendationStatus.ACTIVE },
+        data: { status: RecommendationStatus.SUPERSEDED },
+      });
+
+      const recommendation = await tx.nextStepRecommendation.create({
+        data: {
+          applicantId,
+          type: chosenType,
+          targetId: targetId || undefined,
+          title,
+          reason,
+          supportingEvidence: evidence,
+          confidence: 0.96,
+          status: RecommendationStatus.ACTIVE,
+        },
+      });
+
+      // Notify applicant
+      await tx.notification.create({
+        data: {
+          userId: applicantId,
+          title: 'New Recommended Step',
+          message: `${title}: ${reason.slice(0, 100)}...`,
+          type: 'ACTION_REQUIRED',
+        },
+      });
+
+      return recommendation;
     });
-
-    const saved = await this.recRepo.save(recommendation);
-
-    // Notify applicant
-    await this.notifRepo.save(
-      this.notifRepo.create({
-        userId: applicantId,
-        title: 'New Recommended Step',
-        message: `${title}: ${reason.slice(0, 100)}...`,
-        type: 'ACTION_REQUIRED',
-      }),
-    );
 
     return saved;
   }
 
-  async acceptRecommendation(id: string, applicantId: string): Promise<NextStepRecommendation> {
-    const rec = await this.recRepo.findOne({ where: { id, applicantId } });
+  async acceptRecommendation(id: string, applicantId: string): Promise<any> {
+    const rec = await this.prisma.nextStepRecommendation.findFirst({ where: { id, applicantId } });
     if (!rec) throw new NotFoundException('Recommendation not found');
 
-    rec.status = RecommendationStatus.ACCEPTED;
-    return this.recRepo.save(rec);
+    return this.prisma.nextStepRecommendation.update({
+      where: { id },
+      data: { status: RecommendationStatus.ACCEPTED },
+    });
   }
 
-  async dismissRecommendation(id: string, applicantId: string): Promise<NextStepRecommendation> {
-    const rec = await this.recRepo.findOne({ where: { id, applicantId } });
+  async dismissRecommendation(id: string, applicantId: string): Promise<any> {
+    const rec = await this.prisma.nextStepRecommendation.findFirst({ where: { id, applicantId } });
     if (!rec) throw new NotFoundException('Recommendation not found');
 
-    rec.status = RecommendationStatus.DISMISSED;
-    return this.recRepo.save(rec);
+    return this.prisma.nextStepRecommendation.update({
+      where: { id },
+      data: { status: RecommendationStatus.DISMISSED },
+    });
   }
 }

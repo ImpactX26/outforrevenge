@@ -1,8 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { IStorageService, StorageUploadResult } from './storage.interface';
 import { LocalStorageService } from './local-storage.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
+import * as path from 'path';
 
 @Injectable()
 export class CloudinaryStorageService implements IStorageService {
@@ -12,7 +14,21 @@ export class CloudinaryStorageService implements IStorageService {
   private readonly apiSecret: string;
   private readonly enabled: boolean;
 
-  constructor(private readonly localFallback: LocalStorageService) {
+  private readonly allowedExtensions = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.mp4'];
+  private readonly allowedMimes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'video/mp4',
+  ];
+
+  constructor(
+    private readonly localFallback: LocalStorageService,
+    private readonly prisma: PrismaService,
+  ) {
     this.cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
     this.apiKey = process.env.CLOUDINARY_API_KEY || '';
     this.apiSecret = process.env.CLOUDINARY_API_SECRET || '';
@@ -34,7 +50,7 @@ export class CloudinaryStorageService implements IStorageService {
     if (this.enabled) {
       this.logger.log(`Cloudinary storage active for cloud: ${this.cloudName}`);
     } else {
-      this.logger.log('Cloudinary credentials not provided. Storing files via local storage.');
+      this.logger.log('Cloudinary credentials not provided or partial. Local fallback ready.');
     }
   }
 
@@ -45,16 +61,32 @@ export class CloudinaryStorageService implements IStorageService {
     buffer: Buffer,
     mimeType: string,
   ): Promise<StorageUploadResult> {
+    // 1. Strict validation of extension, MIME, size and dangerous types
+    this.validateFile(filename, mimeType, buffer);
+
+    const safeApplicant = applicantId.replace(/[^a-zA-Z0-9_-]/g, '');
+    const folder = `nexora/applicants/${safeApplicant}/${category}`;
+    const cleanName = filename.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const publicId = `${folder}/${Date.now()}_${cleanName}`;
+    const ext = path.extname(filename).replace('.', '').toLowerCase() || 'bin';
+    const resourceType = mimeType.startsWith('video/') ? 'video' : mimeType.startsWith('image/') ? 'image' : 'raw';
+
     if (!this.enabled) {
-      return this.localFallback.uploadFile(applicantId, category, filename, buffer, mimeType);
+      const localRes = await this.localFallback.uploadFile(applicantId, category, filename, buffer, mimeType);
+      await this.saveFileAssetMetadata(
+        localRes.storageKey,
+        resourceType,
+        ext,
+        filename,
+        localRes.fileSize,
+        applicantId,
+        localRes.url,
+      );
+      return localRes;
     }
 
     try {
       const timestamp = Math.floor(Date.now() / 1000);
-      const safeApplicant = applicantId.replace(/[^a-zA-Z0-9_-]/g, '');
-      const cleanName = filename.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const publicId = `nexora/${category}/${safeApplicant}_${Date.now()}_${cleanName}`;
-      const folder = `nexora/${category}`;
 
       // Signature parameters in alphabetical order
       const paramsToSign = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${this.apiSecret}`;
@@ -69,8 +101,8 @@ export class CloudinaryStorageService implements IStorageService {
       formData.append('folder', folder);
       formData.append('signature', signature);
 
-      const resourceType = mimeType.startsWith('video/') ? 'video' : 'auto';
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${this.cloudName}/${resourceType}/upload`;
+      const targetResourceType = resourceType === 'raw' ? 'raw' : resourceType === 'video' ? 'video' : 'auto';
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${this.cloudName}/${targetResourceType}/upload`;
 
       const res = await fetch(uploadUrl, {
         method: 'POST',
@@ -83,17 +115,41 @@ export class CloudinaryStorageService implements IStorageService {
       }
 
       const data: any = await res.json();
+      const finalPublicId = data.public_id || publicId;
+      const finalUrl = data.secure_url || data.url;
+      const fileSize = data.bytes || buffer.length;
+
+      // Store metadata in PostgreSQL FileAsset table
+      await this.saveFileAssetMetadata(
+        finalPublicId,
+        data.resource_type || resourceType,
+        data.format || ext,
+        filename,
+        fileSize,
+        applicantId,
+        finalUrl,
+      );
 
       return {
-        storageKey: data.public_id || publicId,
+        storageKey: finalPublicId,
         filename,
-        fileSize: data.bytes || buffer.length,
+        fileSize,
         mimeType,
-        url: data.secure_url || data.url,
+        url: finalUrl,
       };
     } catch (err: any) {
-      this.logger.warn(`Cloudinary upload failed: ${err.message}. Falling back to local storage.`);
-      return this.localFallback.uploadFile(applicantId, category, filename, buffer, mimeType);
+      this.logger.warn(`Cloudinary upload attempt failed: ${err.message}. Retrying with local fallback.`);
+      const localRes = await this.localFallback.uploadFile(applicantId, category, filename, buffer, mimeType);
+      await this.saveFileAssetMetadata(
+        localRes.storageKey,
+        resourceType,
+        ext,
+        filename,
+        localRes.fileSize,
+        applicantId,
+        localRes.url,
+      );
+      return localRes;
     }
   }
 
@@ -110,7 +166,7 @@ export class CloudinaryStorageService implements IStorageService {
     }
 
     if (this.enabled && storageKey.startsWith('nexora/')) {
-      const secureUrl = `https://res.cloudinary.com/${this.cloudName}/auto/upload/${storageKey}`;
+      const secureUrl = await this.getSecureUrl(storageKey);
       try {
         const res = await fetch(secureUrl);
         if (res.ok) {
@@ -131,7 +187,11 @@ export class CloudinaryStorageService implements IStorageService {
     }
 
     if (this.enabled && storageKey.startsWith('nexora/')) {
-      return `https://res.cloudinary.com/${this.cloudName}/auto/upload/${storageKey}`;
+      // Authenticated signed delivery URL
+      const timestamp = Math.floor(Date.now() / 1000) + expiresInSeconds;
+      const toSign = `public_id=${storageKey}&timestamp=${timestamp}${this.apiSecret}`;
+      const sig = crypto.createHash('sha1').update(toSign).digest('hex').slice(0, 16);
+      return `https://res.cloudinary.com/${this.cloudName}/auto/upload/s--${sig}--/${storageKey}`;
     }
 
     return this.localFallback.getSecureUrl(storageKey, expiresInSeconds);
@@ -150,17 +210,89 @@ export class CloudinaryStorageService implements IStorageService {
         formData.append('timestamp', timestamp.toString());
         formData.append('signature', signature);
 
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${this.cloudName}/image/destroy`, {
+        await fetch(`https://api.cloudinary.com/v1_1/${this.cloudName}/image/destroy`, {
           method: 'POST',
           body: formData,
         });
-
-        return res.ok;
       } catch (e) {
-        return false;
+        // continue
       }
     }
 
+    // Also remove metadata from PostgreSQL
+    try {
+      await this.prisma.fileAsset.deleteMany({
+        where: { publicId: storageKey },
+      });
+    } catch (e) {
+      // ignore
+    }
+
     return this.localFallback.deleteFile(storageKey);
+  }
+
+  private validateFile(filename: string, mimeType: string, buffer: Buffer): void {
+    const ext = path.extname(filename).toLowerCase();
+
+    if (!this.allowedExtensions.includes(ext)) {
+      throw new BadRequestException(
+        `Disallowed file extension "${ext}". Allowed formats: PDF, DOC, DOCX, JPG, JPEG, PNG, MP4`,
+      );
+    }
+
+    const cleanMime = mimeType.toLowerCase();
+    if (!this.allowedMimes.includes(cleanMime)) {
+      throw new BadRequestException(
+        `Disallowed MIME type "${cleanMime}". Allowed formats: PDF, DOC, DOCX, JPG, JPEG, PNG, MP4`,
+      );
+    }
+
+    // Dangerous extension check
+    const dangerous = ['.exe', '.sh', '.bat', '.cmd', '.js', '.vbs', '.py', '.php', '.bin'];
+    if (dangerous.some((d) => filename.toLowerCase().endsWith(d))) {
+      throw new BadRequestException('Dangerous executable or script file detected.');
+    }
+
+    // Size limit: 100MB max
+    if (buffer.length > 100 * 1024 * 1024) {
+      throw new BadRequestException('File size exceeds the 100MB limit.');
+    }
+  }
+
+  private async saveFileAssetMetadata(
+    publicId: string,
+    resourceType: string,
+    format: string,
+    filename: string,
+    size: number,
+    reference: string,
+    secureUrl?: string,
+  ): Promise<void> {
+    try {
+      await this.prisma.fileAsset.upsert({
+        where: { publicId },
+        create: {
+          publicId,
+          resourceType,
+          format,
+          filename,
+          size: BigInt(size),
+          reference,
+          status: 'UPLOADED',
+          secureUrl,
+        },
+        update: {
+          resourceType,
+          format,
+          filename,
+          size: BigInt(size),
+          reference,
+          status: 'UPLOADED',
+          secureUrl,
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Could not persist FileAsset metadata: ${err.message}`);
+    }
   }
 }

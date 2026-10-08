@@ -1,7 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ApplicantProfile } from '../../database/entities/applicant-profile.entity';
-import { Document } from '../../database/entities/document.entity';
-import { Video } from '../../database/entities/video.entity';
 import { AiService } from '../../ai/ai.service';
 
 export interface MissingInfoItem {
@@ -17,15 +14,15 @@ export class MissingInfoAgent {
   constructor(private readonly aiService: AiService) {}
 
   async detectGaps(
-    profile: ApplicantProfile,
-    documents: Document[],
-    videos: Video[],
+    profile: any,
+    documents: any[],
+    videos: any[],
     parentExecutionId?: string,
   ): Promise<MissingInfoItem[]> {
     const gaps: MissingInfoItem[] = [];
 
     // 1. Language gaps
-    const hasGerman = profile.languages?.some((l) => l.language.toLowerCase().includes('german'));
+    const hasGerman = profile.languages?.some((l: any) => l.language.toLowerCase().includes('german'));
     if (!hasGerman) {
       gaps.push({
         field: 'German Language Proficiency',
@@ -37,7 +34,7 @@ export class MissingInfoAgent {
     }
 
     // 2. Education documents
-    const hasEduDoc = documents.some((d) => d.documentType === 'DEGREE' || d.documentType === 'TRANSCRIPT');
+    const hasEduDoc = documents.some((d: any) => d.documentType === 'DEGREE' || d.documentType === 'TRANSCRIPT');
     if (!hasEduDoc && (!profile.educations || profile.educations.length === 0)) {
       gaps.push({
         field: 'Degree Certificate / 12th Marksheet',

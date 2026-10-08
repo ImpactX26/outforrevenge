@@ -1,52 +1,47 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Opportunity } from '../database/entities/opportunity.entity';
-import { OpportunityMatch } from '../database/entities/opportunity-match.entity';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { OpportunityType } from '../common/enums';
 import { AiService } from '../ai/ai.service';
 
 @Injectable()
 export class OpportunitiesService {
   constructor(
-    @InjectRepository(Opportunity)
-    private readonly opportunityRepo: Repository<Opportunity>,
-    @InjectRepository(OpportunityMatch)
-    private readonly matchRepo: Repository<OpportunityMatch>,
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
+    private readonly prisma: PrismaService,
     private readonly aiService: AiService,
   ) {}
 
-  async getAllOpportunities(type?: OpportunityType): Promise<Opportunity[]> {
-    const query = this.opportunityRepo.createQueryBuilder('opp');
-    if (type) {
-      query.where('opp.type = :type', { type });
-    }
-    return query.orderBy('opp.createdAt', 'DESC').getMany();
+  async getAllOpportunities(type?: OpportunityType): Promise<any[]> {
+    return this.prisma.opportunity.findMany({
+      where: type ? { type } : undefined,
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
-  async getOpportunityById(id: string): Promise<Opportunity> {
-    const opp = await this.opportunityRepo.findOne({ where: { id } });
+  async getOpportunityById(id: string): Promise<any> {
+    const opp = await this.prisma.opportunity.findUnique({ where: { id } });
     if (!opp) {
       throw new NotFoundException('Opportunity not found');
     }
     return opp;
   }
 
-  async matchApplicant(applicantId: string, parentExecutionId?: string): Promise<OpportunityMatch[]> {
-    const profile = await this.profileRepo.findOne({
+  async matchApplicant(applicantId: string, parentExecutionId?: string): Promise<any[]> {
+    const profile = await this.prisma.applicantProfile.findUnique({
       where: { userId: applicantId },
-      relations: ['educations', 'employments', 'skills', 'languages'],
+      include: {
+        educations: true,
+        employments: true,
+        skills: true,
+        languages: true,
+      },
     });
 
     if (!profile) {
       throw new NotFoundException('Applicant profile not found');
     }
 
-    const allOpportunities = await this.opportunityRepo.find();
-    const matches: OpportunityMatch[] = [];
+    const allOpportunities = await this.prisma.opportunity.findMany();
+    const matches: any[] = [];
 
     const applicantGerman = profile.languages?.find((l) => l.language.toLowerCase().includes('german'))?.proficiencyLevel || 'None';
     const applicantEnglish = profile.languages?.find((l) => l.language.toLowerCase().includes('english'))?.proficiencyLevel || 'None';
@@ -57,7 +52,7 @@ export class OpportunitiesService {
       const missingReqs: string[] = [];
       let score = 50; // base score for pathway consideration
 
-      const req = opp.requirements || {};
+      const req = (opp.requirements as any) || {};
 
       // Pathway alignment
       if (profile.currentGoal && opp.type.toString() === profile.currentGoal.toString()) {
@@ -78,8 +73,8 @@ export class OpportunitiesService {
 
       // Skills alignment
       if (req.skillsRequired && req.skillsRequired.length > 0) {
-        const matchingSkills = req.skillsRequired.filter((s) =>
-          applicantSkills.some((ask) => ask.includes(s.toLowerCase()) || s.toLowerCase().includes(ask)),
+        const matchingSkills = req.skillsRequired.filter((s: string) =>
+          applicantSkills.some((ask: string) => ask.includes(s.toLowerCase()) || s.toLowerCase().includes(ask)),
         );
         if (matchingSkills.length > 0) {
           score += 15;
@@ -102,30 +97,38 @@ export class OpportunitiesService {
         : 'Eligible to generate tailored application and CV.';
 
       // Check existing match
-      let match = await this.matchRepo.findOne({
+      const existingMatch = await this.prisma.opportunityMatch.findFirst({
         where: { applicantId, opportunityId: opp.id },
       });
 
-      if (!match) {
-        match = this.matchRepo.create({
-          applicantId,
-          opportunityId: opp.id,
-          matchPercentage: finalMatchPercentage,
-          matchedRequirements: matchedReqs,
-          missingRequirements: missingReqs,
-          reason,
-          nextAction,
+      let savedMatch;
+      if (!existingMatch) {
+        savedMatch = await this.prisma.opportunityMatch.create({
+          data: {
+            applicantId,
+            opportunityId: opp.id,
+            matchPercentage: finalMatchPercentage,
+            matchedRequirements: matchedReqs,
+            missingRequirements: missingReqs,
+            reason,
+            nextAction,
+          },
+          include: { opportunity: true },
         });
       } else {
-        match.matchPercentage = finalMatchPercentage;
-        match.matchedRequirements = matchedReqs;
-        match.missingRequirements = missingReqs;
-        match.reason = reason;
-        match.nextAction = nextAction;
+        savedMatch = await this.prisma.opportunityMatch.update({
+          where: { id: existingMatch.id },
+          data: {
+            matchPercentage: finalMatchPercentage,
+            matchedRequirements: matchedReqs,
+            missingRequirements: missingReqs,
+            reason,
+            nextAction,
+          },
+          include: { opportunity: true },
+        });
       }
 
-      const savedMatch = await this.matchRepo.save(match);
-      savedMatch.opportunity = opp;
       matches.push(savedMatch);
     }
 
@@ -135,11 +138,11 @@ export class OpportunitiesService {
     return matches;
   }
 
-  async getApplicantMatches(applicantId: string): Promise<OpportunityMatch[]> {
-    let matches = await this.matchRepo.find({
+  async getApplicantMatches(applicantId: string): Promise<any[]> {
+    let matches = await this.prisma.opportunityMatch.findMany({
       where: { applicantId },
-      relations: ['opportunity'],
-      order: { matchPercentage: 'DESC' },
+      include: { opportunity: true },
+      orderBy: { matchPercentage: 'desc' },
     });
 
     if (matches.length === 0) {

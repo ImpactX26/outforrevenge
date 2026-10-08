@@ -2,84 +2,70 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
-import { User } from '../database/entities/user.entity';
-import { Education } from '../database/entities/education.entity';
-import { Employment } from '../database/entities/employment.entity';
-import { Skill } from '../database/entities/skill.entity';
-import { Language } from '../database/entities/language.entity';
-import { Document } from '../database/entities/document.entity';
-import { Video } from '../database/entities/video.entity';
-import { QualificationAssessment } from '../database/entities/qualification-assessment.entity';
-import { NextStepRecommendation } from '../database/entities/next-step-recommendation.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SourceType, VerificationStatus } from '../common/enums';
 
 @Injectable()
 export class ApplicantsService {
-  constructor(
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-    @InjectRepository(Education)
-    private readonly educationRepo: Repository<Education>,
-    @InjectRepository(Employment)
-    private readonly employmentRepo: Repository<Employment>,
-    @InjectRepository(Skill)
-    private readonly skillRepo: Repository<Skill>,
-    @InjectRepository(Language)
-    private readonly languageRepo: Repository<Language>,
-    @InjectRepository(Document)
-    private readonly documentRepo: Repository<Document>,
-    @InjectRepository(Video)
-    private readonly videoRepo: Repository<Video>,
-    @InjectRepository(QualificationAssessment)
-    private readonly assessmentRepo: Repository<QualificationAssessment>,
-    @InjectRepository(NextStepRecommendation)
-    private readonly recommendationRepo: Repository<NextStepRecommendation>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getProfile(userId: string): Promise<any> {
-    let profile = await this.profileRepo.findOne({
+    let profile = await this.prisma.applicantProfile.findUnique({
       where: { userId },
-      relations: ['user', 'educations', 'employments', 'skills', 'languages'],
+      include: {
+        user: true,
+        educations: true,
+        employments: true,
+        skills: true,
+        languages: true,
+      },
     });
 
     if (!profile) {
       // Create empty profile if not exists
-      profile = this.profileRepo.create({
-        userId,
-        profileCompleteness: 15,
-        readinessScore: 10,
-      });
-      await this.profileRepo.save(profile);
-      profile = await this.profileRepo.findOne({
-        where: { userId },
-        relations: ['user', 'educations', 'employments', 'skills', 'languages'],
+      profile = await this.prisma.applicantProfile.create({
+        data: {
+          userId,
+          profileCompleteness: 15,
+          readinessScore: 10,
+        },
+        include: {
+          user: true,
+          educations: true,
+          employments: true,
+          skills: true,
+          languages: true,
+        },
       });
     }
 
-    const documents = await this.documentRepo.find({
+    const rawDocuments = await this.prisma.document.findMany({
       where: { applicantId: userId },
-      relations: ['extraction'],
+      include: { extraction: true },
+    });
+    const documents = rawDocuments.map((d) => ({
+      ...d,
+      fileSize: Number(d.fileSize),
+    }));
+
+    const rawVideos = await this.prisma.video.findMany({
+      where: { applicantId: userId },
+      include: { analysis: true },
+    });
+    const videos = rawVideos.map((v) => ({
+      ...v,
+      fileSize: Number(v.fileSize),
+    }));
+
+    const latestAssessment = await this.prisma.qualificationAssessment.findFirst({
+      where: { applicantId: userId },
+      orderBy: { evaluatedAt: 'desc' },
     });
 
-    const videos = await this.videoRepo.find({
+    const latestRecommendation = await this.prisma.nextStepRecommendation.findFirst({
       where: { applicantId: userId },
-      relations: ['analysis'],
-    });
-
-    const latestAssessment = await this.assessmentRepo.findOne({
-      where: { applicantId: userId },
-      order: { evaluatedAt: 'DESC' },
-    });
-
-    const latestRecommendation = await this.recommendationRepo.findOne({
-      where: { applicantId: userId },
-      order: { createdAt: 'DESC' },
+      orderBy: { createdAt: 'desc' },
     });
 
     const metrics = this.calculateMetrics(profile, documents, videos, latestAssessment);
@@ -102,27 +88,55 @@ export class ApplicantsService {
     };
   }
 
-  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<ApplicantProfile> {
-    let profile = await this.profileRepo.findOne({ where: { userId } });
-    if (!profile) {
-      profile = this.profileRepo.create({ userId });
-    }
-
-    Object.assign(profile, dto);
-
-    // Recalculate metrics
-    const documents = await this.documentRepo.find({ where: { applicantId: userId } });
-    const videos = await this.videoRepo.find({ where: { applicantId: userId } });
-    const latestAssessment = await this.assessmentRepo.findOne({
-      where: { applicantId: userId },
-      order: { evaluatedAt: 'DESC' },
+  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<any> {
+    const existing = await this.prisma.applicantProfile.findUnique({
+      where: { userId },
+      include: {
+        user: true,
+        educations: true,
+        employments: true,
+        skills: true,
+        languages: true,
+      },
     });
 
-    const metrics = this.calculateMetrics(profile, documents, videos, latestAssessment);
-    profile.profileCompleteness = metrics.profileCompleteness;
-    profile.readinessScore = metrics.readinessScore;
+    const rawDocuments = await this.prisma.document.findMany({ where: { applicantId: userId } });
+    const documents = rawDocuments.map((d) => ({ ...d, fileSize: Number(d.fileSize) }));
 
-    return this.profileRepo.save(profile);
+    const rawVideos = await this.prisma.video.findMany({ where: { applicantId: userId } });
+    const videos = rawVideos.map((v) => ({ ...v, fileSize: Number(v.fileSize) }));
+
+    const latestAssessment = await this.prisma.qualificationAssessment.findFirst({
+      where: { applicantId: userId },
+      orderBy: { evaluatedAt: 'desc' },
+    });
+
+    const tempMerged = { ...(existing || {}), ...dto } as any;
+    const metrics = this.calculateMetrics(tempMerged, documents, videos, latestAssessment);
+
+    const updateData: any = {
+      ...dto,
+      profileCompleteness: metrics.profileCompleteness,
+      readinessScore: metrics.readinessScore,
+    };
+
+    const updatedProfile = await this.prisma.applicantProfile.upsert({
+      where: { userId },
+      update: updateData,
+      create: {
+        userId,
+        ...updateData,
+      },
+      include: {
+        user: true,
+        educations: true,
+        employments: true,
+        skills: true,
+        languages: true,
+      },
+    });
+
+    return updatedProfile;
   }
 
   async getProgress(userId: string): Promise<any> {
@@ -138,63 +152,67 @@ export class ApplicantsService {
     };
   }
 
-  async addEducation(userId: string, data: Partial<Education>): Promise<Education> {
-    const profile = await this.profileRepo.findOne({ where: { userId } });
+  async addEducation(userId: string, data: any): Promise<any> {
+    const profile = await this.prisma.applicantProfile.findUnique({ where: { userId } });
     if (!profile) throw new NotFoundException('Profile not found');
 
-    const edu = this.educationRepo.create({
-      ...data,
-      profileId: profile.id,
-      sourceType: SourceType.APPLICANT_PROVIDED,
-      verificationStatus: VerificationStatus.PENDING,
+    return this.prisma.education.create({
+      data: {
+        ...data,
+        profileId: profile.id,
+        sourceType: data.sourceType || SourceType.APPLICANT_PROVIDED,
+        verificationStatus: data.verificationStatus || VerificationStatus.PENDING,
+      },
     });
-    return this.educationRepo.save(edu);
   }
 
-  async addEmployment(userId: string, data: Partial<Employment>): Promise<Employment> {
-    const profile = await this.profileRepo.findOne({ where: { userId } });
+  async addEmployment(userId: string, data: any): Promise<any> {
+    const profile = await this.prisma.applicantProfile.findUnique({ where: { userId } });
     if (!profile) throw new NotFoundException('Profile not found');
 
-    const emp = this.employmentRepo.create({
-      ...data,
-      profileId: profile.id,
-      sourceType: SourceType.APPLICANT_PROVIDED,
-      verificationStatus: VerificationStatus.PENDING,
+    return this.prisma.employment.create({
+      data: {
+        ...data,
+        profileId: profile.id,
+        sourceType: data.sourceType || SourceType.APPLICANT_PROVIDED,
+        verificationStatus: data.verificationStatus || VerificationStatus.PENDING,
+      },
     });
-    return this.employmentRepo.save(emp);
   }
 
-  async addSkill(userId: string, data: Partial<Skill>): Promise<Skill> {
-    const profile = await this.profileRepo.findOne({ where: { userId } });
+  async addSkill(userId: string, data: any): Promise<any> {
+    const profile = await this.prisma.applicantProfile.findUnique({ where: { userId } });
     if (!profile) throw new NotFoundException('Profile not found');
 
-    const skill = this.skillRepo.create({
-      ...data,
-      profileId: profile.id,
-      sourceType: SourceType.APPLICANT_PROVIDED,
-      verificationStatus: VerificationStatus.PENDING,
+    return this.prisma.skill.create({
+      data: {
+        ...data,
+        profileId: profile.id,
+        sourceType: data.sourceType || SourceType.APPLICANT_PROVIDED,
+        verificationStatus: data.verificationStatus || VerificationStatus.PENDING,
+      },
     });
-    return this.skillRepo.save(skill);
   }
 
-  async addLanguage(userId: string, data: Partial<Language>): Promise<Language> {
-    const profile = await this.profileRepo.findOne({ where: { userId } });
+  async addLanguage(userId: string, data: any): Promise<any> {
+    const profile = await this.prisma.applicantProfile.findUnique({ where: { userId } });
     if (!profile) throw new NotFoundException('Profile not found');
 
-    const lang = this.languageRepo.create({
-      ...data,
-      profileId: profile.id,
-      sourceType: SourceType.APPLICANT_PROVIDED,
-      verificationStatus: VerificationStatus.PENDING,
+    return this.prisma.language.create({
+      data: {
+        ...data,
+        profileId: profile.id,
+        sourceType: data.sourceType || SourceType.APPLICANT_PROVIDED,
+        verificationStatus: data.verificationStatus || VerificationStatus.PENDING,
+      },
     });
-    return this.languageRepo.save(lang);
   }
 
   private calculateMetrics(
-    profile: ApplicantProfile,
-    documents: Document[],
-    videos: Video[],
-    assessment?: QualificationAssessment,
+    profile: any,
+    documents: any[],
+    videos: any[],
+    assessment?: any,
   ) {
     let score = 0;
 
@@ -231,7 +249,7 @@ export class ApplicantsService {
     // Readiness score calculation: weighted combination of completeness, document verification, and assessment
     let readiness = Math.round(totalCompleteness * 0.6);
     if (assessment) {
-      readiness = Math.round(totalCompleteness * 0.4 + assessment.score * 0.6);
+      readiness = Math.round(totalCompleteness * 0.4 + (assessment.score || 0) * 0.6);
     }
 
     return {

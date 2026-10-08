@@ -1,16 +1,12 @@
 import {
   Injectable,
+  Inject,
   NotFoundException,
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { CV } from '../database/entities/cv.entity';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
-import { User } from '../database/entities/user.entity';
-import { AuditLog } from '../database/entities/audit-log.entity';
-import { LocalStorageService } from '../storage/local-storage.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { IStorageService, STORAGE_SERVICE_TOKEN } from '../storage/storage.interface';
 import { PdfGeneratorService } from './pdf-generator.service';
 import { AiService } from '../ai/ai.service';
 
@@ -19,32 +15,31 @@ export class CvService {
   private readonly logger = new Logger(CvService.name);
 
   constructor(
-    @InjectRepository(CV)
-    private readonly cvRepo: Repository<CV>,
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-    @InjectRepository(AuditLog)
-    private readonly auditRepo: Repository<AuditLog>,
-    private readonly storageService: LocalStorageService,
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE_TOKEN)
+    private readonly storageService: IStorageService,
     private readonly pdfService: PdfGeneratorService,
     private readonly aiService: AiService,
   ) {}
 
-  async generateCv(applicantId: string, templateName = 'Germany_EU_Clean', parentExecutionId?: string): Promise<CV> {
-    const user = await this.userRepo.findOne({ where: { id: applicantId } });
+  async generateCv(applicantId: string, templateName = 'Germany_EU_Clean', parentExecutionId?: string): Promise<any> {
+    const user = await this.prisma.user.findUnique({ where: { id: applicantId } });
     if (!user) throw new NotFoundException('User not found');
 
-    const profile = await this.profileRepo.findOne({
+    const profile = await this.prisma.applicantProfile.findUnique({
       where: { userId: applicantId },
-      relations: ['educations', 'employments', 'skills', 'languages'],
+      include: {
+        educations: true,
+        employments: true,
+        skills: true,
+        languages: true,
+      },
     });
 
     if (!profile) throw new NotFoundException('Profile not found');
 
     // Count existing CVs for versioning
-    const existingCount = await this.cvRepo.count({ where: { applicantId } });
+    const existingCount = await this.prisma.cV.count({ where: { applicantId } });
     const version = existingCount + 1;
 
     // Collect verified information with provenance
@@ -60,7 +55,7 @@ export class CvService {
       degree: edu.degree,
       field: edu.fieldOfStudy,
       period: edu.graduationDate ? `Class of ${edu.graduationDate.slice(0, 4)}` : 'Completed',
-      grade: edu.gradeOrCgpa,
+      grade: edu.gradeOrCgpa || undefined,
       provenance: `${edu.sourceType} (${edu.verificationStatus})`,
     }));
 
@@ -68,23 +63,23 @@ export class CvService {
       company: emp.companyName,
       role: emp.role,
       period: `${emp.startDate || ''} - ${emp.isCurrent ? 'Present' : emp.endDate || ''}`,
-      responsibilities: emp.responsibilities,
+      responsibilities: emp.responsibilities || undefined,
       provenance: `${emp.sourceType} (${emp.verificationStatus})`,
     }));
 
     const skillsData = (profile.skills || []).map((sk) => ({
       name: sk.name,
-      category: sk.category,
-      level: sk.proficiencyLevel,
+      category: sk.category || undefined,
+      level: sk.proficiencyLevel || undefined,
     }));
 
     const languagesData = (profile.languages || []).map((l) => ({
       language: l.language,
       level: l.proficiencyLevel,
-      certificate: l.certificateType,
+      certificate: l.certificateType || undefined,
     }));
 
-    // Call CV Agent for professional German summary and layout advice
+    // Call CV Agent for professional German summary
     const prompt = `Generate a German standard CV profile summary from:
 Applicant: ${personalInfo.fullName}
 Goal: ${profile.currentGoal}
@@ -95,7 +90,7 @@ Write a concise, professional 3-sentence summary in English/German highlighting 
 
     let summary = '';
     try {
-      const { data } = await this.aiService.runAgentStructured<any>(
+      const aiResponse = await this.aiService.runAgentStructured<any>(
         'CV',
         applicantId,
         prompt,
@@ -103,54 +98,58 @@ Write a concise, professional 3-sentence summary in English/German highlighting 
         parentExecutionId,
         'CV_GENERATOR_AGENT',
       );
-      summary = data?.summary || '';
-    } catch (e) {
-      summary = `Dedicated engineering graduate seeking a pathway in Germany. Possesses strong foundations in modern software development and progressing German language proficiency.`;
+      summary = aiResponse?.data?.summary || '';
+    } catch (e: any) {
+      summary = `Dedicated candidate seeking a professional pathway in Germany. Possesses strong foundations in technical skills and verified German language proficiency.`;
     }
 
-    const cv = this.cvRepo.create({
-      applicantId,
-      title: `${user.firstName} ${user.lastName} - German CV (v${version})`,
-      templateName,
-      version,
-      summary,
-      isSummaryAiGenerated: true,
-      personalInfo,
-      educationData,
-      employmentData,
-      skillsData,
-      languagesData,
-      customSections: [],
-      isPublished: true,
-    });
+    const savedCv = await this.prisma.$transaction(async (tx) => {
+      const newCv = await tx.cV.create({
+        data: {
+          applicantId,
+          title: `${user.firstName} ${user.lastName} - German CV (v${version})`,
+          templateName,
+          version,
+          summary,
+          isSummaryAiGenerated: true,
+          personalInfo,
+          educationData,
+          employmentData,
+          skillsData,
+          languagesData,
+          customSections: [],
+          isPublished: true,
+        },
+      });
 
-    const savedCv = await this.cvRepo.save(cv);
+      await tx.auditLog.create({
+        data: {
+          userId: applicantId,
+          action: 'CV_GENERATION',
+          entityType: 'CV',
+          entityId: newCv.id,
+          details: { version, templateName },
+        },
+      });
+
+      return newCv;
+    });
 
     // Auto-generate PDF and upload to storage
     await this.exportPdf(savedCv.id, applicantId);
 
-    await this.auditRepo.save(
-      this.auditRepo.create({
-        userId: applicantId,
-        action: 'CV_GENERATION',
-        entityType: 'CV',
-        entityId: savedCv.id,
-        details: { version, templateName },
-      }),
-    );
-
     return this.getCvById(savedCv.id, applicantId);
   }
 
-  async getCvs(applicantId: string): Promise<CV[]> {
-    return this.cvRepo.find({
+  async getCvs(applicantId: string): Promise<any[]> {
+    return this.prisma.cV.findMany({
       where: { applicantId },
-      order: { version: 'DESC' },
+      orderBy: { version: 'desc' },
     });
   }
 
-  async getCvById(id: string, applicantId: string): Promise<CV> {
-    const cv = await this.cvRepo.findOne({ where: { id } });
+  async getCvById(id: string, applicantId: string): Promise<any> {
+    const cv = await this.prisma.cV.findUnique({ where: { id } });
     if (!cv) throw new NotFoundException('CV not found');
     if (cv.applicantId !== applicantId) {
       throw new ForbiddenException('Unauthorized access to CV');
@@ -158,22 +157,27 @@ Write a concise, professional 3-sentence summary in English/German highlighting 
     return cv;
   }
 
-  async updateCv(id: string, applicantId: string, updateData: Partial<CV>): Promise<CV> {
+  async updateCv(id: string, applicantId: string, updateData: any): Promise<any> {
     const cv = await this.getCvById(id, applicantId);
 
-    if (updateData.summary !== undefined) cv.summary = updateData.summary;
-    if (updateData.title !== undefined) cv.title = updateData.title;
-    if (updateData.templateName !== undefined) cv.templateName = updateData.templateName;
-    if (updateData.personalInfo !== undefined) cv.personalInfo = updateData.personalInfo;
-    if (updateData.educationData !== undefined) cv.educationData = updateData.educationData;
-    if (updateData.employmentData !== undefined) cv.employmentData = updateData.employmentData;
-    if (updateData.skillsData !== undefined) cv.skillsData = updateData.skillsData;
-    if (updateData.languagesData !== undefined) cv.languagesData = updateData.languagesData;
-    if (updateData.customSections !== undefined) cv.customSections = updateData.customSections;
+    const dataToUpdate: any = {};
+    if (updateData.summary !== undefined) dataToUpdate.summary = updateData.summary;
+    if (updateData.title !== undefined) dataToUpdate.title = updateData.title;
+    if (updateData.templateName !== undefined) dataToUpdate.templateName = updateData.templateName;
+    if (updateData.personalInfo !== undefined) dataToUpdate.personalInfo = updateData.personalInfo;
+    if (updateData.educationData !== undefined) dataToUpdate.educationData = updateData.educationData;
+    if (updateData.employmentData !== undefined) dataToUpdate.employmentData = updateData.employmentData;
+    if (updateData.skillsData !== undefined) dataToUpdate.skillsData = updateData.skillsData;
+    if (updateData.languagesData !== undefined) dataToUpdate.languagesData = updateData.languagesData;
+    if (updateData.customSections !== undefined) dataToUpdate.customSections = updateData.customSections;
 
-    const saved = await this.cvRepo.save(cv);
+    await this.prisma.cV.update({
+      where: { id: cv.id },
+      data: dataToUpdate,
+    });
+
     // Re-generate PDF on update
-    await this.exportPdf(saved.id, applicantId);
+    await this.exportPdf(cv.id, applicantId);
     return this.getCvById(id, applicantId);
   }
 
@@ -183,30 +187,31 @@ Write a concise, professional 3-sentence summary in English/German highlighting 
     sectionName: string,
     content: string,
   ): Promise<{ improvedContent: string; rationale: string }> {
-    const cv = await this.getCvById(id, applicantId);
+    await this.getCvById(id, applicantId);
 
     const prompt = `Section: ${sectionName}
 Current content:
 "${content}"
 Improve this section to match German professional Bewerbung (CV) standards. Return JSON with improvedContent and rationale.`;
 
-    const { data } = await this.aiService.runAgentStructured<any>(
+    const aiResponse = await this.aiService.runAgentStructured<any>(
       'CV',
       applicantId,
       prompt,
     );
 
     return {
-      improvedContent: data?.improvedContent || content,
-      rationale: data?.rationale || 'Enhanced formatting and tone to align with German standard terminology.',
+      improvedContent: aiResponse?.data?.improvedContent || content,
+      rationale: aiResponse?.data?.rationale || 'Enhanced formatting and tone to align with German standard terminology.',
     };
   }
 
   async exportPdf(id: string, applicantId: string): Promise<{ pdfUrl: string; storageKey: string }> {
     const cv = await this.getCvById(id, applicantId);
 
-    const pdfBuffer = await this.pdfService.generateCvPdfBuffer(cv);
-    const filename = `CV_${cv.personalInfo.fullName.replace(/\s+/g, '_')}_v${cv.version}.pdf`;
+    const pdfBuffer = await this.pdfService.generateCvPdfBuffer(cv as any);
+    const personalInfo = cv.personalInfo as any;
+    const filename = `CV_${(personalInfo?.fullName || 'Applicant').replace(/\s+/g, '_')}_v${cv.version}.pdf`;
 
     const uploadResult = await this.storageService.uploadFile(
       applicantId,
@@ -216,23 +221,29 @@ Improve this section to match German professional Bewerbung (CV) standards. Retu
       'application/pdf',
     );
 
-    cv.storageKey = uploadResult.storageKey;
-    cv.pdfUrl = uploadResult.url;
-    await this.cvRepo.save(cv);
+    const updated = await this.prisma.cV.update({
+      where: { id: cv.id },
+      data: {
+        storageKey: uploadResult.storageKey,
+        pdfUrl: uploadResult.url,
+      },
+    });
 
     return {
-      pdfUrl: cv.pdfUrl,
-      storageKey: cv.storageKey,
+      pdfUrl: updated.pdfUrl || uploadResult.url,
+      storageKey: updated.storageKey || uploadResult.storageKey,
     };
   }
 
   async getPdfBuffer(id: string, applicantId: string): Promise<{ buffer: Buffer; filename: string }> {
-    const cv = await this.getCvById(id, applicantId);
+    let cv = await this.getCvById(id, applicantId);
     if (!cv.storageKey) {
       await this.exportPdf(id, applicantId);
+      cv = await this.getCvById(id, applicantId);
     }
     const buffer = await this.storageService.getFileBuffer(cv.storageKey);
-    const filename = `CV_${cv.personalInfo.fullName.replace(/\s+/g, '_')}_v${cv.version}.pdf`;
+    const personalInfo = cv.personalInfo as any;
+    const filename = `CV_${(personalInfo?.fullName || 'Applicant').replace(/\s+/g, '_')}_v${cv.version}.pdf`;
     return { buffer, filename };
   }
 }

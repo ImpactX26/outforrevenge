@@ -1,18 +1,13 @@
 import {
   Injectable,
+  Inject,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Video } from '../database/entities/video.entity';
-import { VideoAnalysis } from '../database/entities/video-analysis.entity';
-import { ApplicantProfile } from '../database/entities/applicant-profile.entity';
-import { Skill } from '../database/entities/skill.entity';
-import { AuditLog } from '../database/entities/audit-log.entity';
-import { LocalStorageService } from '../storage/local-storage.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { IStorageService, STORAGE_SERVICE_TOKEN } from '../storage/storage.interface';
 import { DefaultSpeechToTextService } from './stt/default-speech-to-text.service';
 import { AiService } from '../ai/ai.service';
 import {
@@ -28,22 +23,14 @@ export class VideosService {
   private readonly allowedMimes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
 
   constructor(
-    @InjectRepository(Video)
-    private readonly videoRepo: Repository<Video>,
-    @InjectRepository(VideoAnalysis)
-    private readonly analysisRepo: Repository<VideoAnalysis>,
-    @InjectRepository(ApplicantProfile)
-    private readonly profileRepo: Repository<ApplicantProfile>,
-    @InjectRepository(Skill)
-    private readonly skillRepo: Repository<Skill>,
-    @InjectRepository(AuditLog)
-    private readonly auditRepo: Repository<AuditLog>,
-    private readonly storageService: LocalStorageService,
+    private readonly prisma: PrismaService,
+    @Inject(STORAGE_SERVICE_TOKEN)
+    private readonly storageService: IStorageService,
     private readonly sttService: DefaultSpeechToTextService,
     private readonly aiService: AiService,
   ) {}
 
-  async uploadVideo(applicantId: string, file: Express.Multer.File): Promise<Video> {
+  async uploadVideo(applicantId: string, file: Express.Multer.File): Promise<any> {
     if (!file) {
       throw new BadRequestException('No video file provided');
     }
@@ -66,38 +53,41 @@ export class VideosService {
       file.mimetype,
     );
 
-    const video = this.videoRepo.create({
-      applicantId,
-      filename: uploadResult.filename,
-      storageKey: uploadResult.storageKey,
-      fileSize: uploadResult.fileSize,
-      mimeType: uploadResult.mimeType,
-      status: DocumentStatus.UPLOADED,
+    const video = await this.prisma.video.create({
+      data: {
+        applicantId,
+        filename: uploadResult.filename,
+        storageKey: uploadResult.storageKey,
+        fileSize: BigInt(uploadResult.fileSize),
+        mimeType: uploadResult.mimeType,
+        status: DocumentStatus.UPLOADED,
+      },
     });
 
-    const savedVideo = await this.videoRepo.save(video);
-
-    await this.auditRepo.save(
-      this.auditRepo.create({
+    await this.prisma.auditLog.create({
+      data: {
         userId: applicantId,
         action: 'VIDEO_UPLOAD',
         entityType: 'VIDEO',
-        entityId: savedVideo.id,
-      }),
-    );
-
-    // Auto-trigger speech-to-text and Video Agent analysis
-    this.analyzeVideo(savedVideo.id, applicantId).catch((err) => {
-      this.logger.error(`Background video analysis failed for ${savedVideo.id}: ${err.message}`);
+        entityId: video.id,
+      },
     });
 
-    return savedVideo;
+    // Auto-trigger speech-to-text and Video Agent analysis
+    this.analyzeVideo(video.id, applicantId).catch((err) => {
+      this.logger.error(`Background video analysis failed for ${video.id}: ${err.message}`);
+    });
+
+    return {
+      ...video,
+      fileSize: Number(video.fileSize),
+    };
   }
 
-  async analyzeVideo(videoId: string, applicantId: string): Promise<VideoAnalysis> {
-    const video = await this.videoRepo.findOne({
+  async analyzeVideo(videoId: string, applicantId: string): Promise<any> {
+    const video = await this.prisma.video.findUnique({
       where: { id: videoId },
-      relations: ['analysis'],
+      include: { analysis: true },
     });
 
     if (!video) {
@@ -108,8 +98,10 @@ export class VideosService {
       throw new ForbiddenException('Unauthorized access to video');
     }
 
-    video.status = DocumentStatus.EXTRACTING;
-    await this.videoRepo.save(video);
+    await this.prisma.video.update({
+      where: { id: videoId },
+      data: { status: DocumentStatus.EXTRACTING },
+    });
 
     try {
       const buffer = await this.storageService.getFileBuffer(video.storageKey);
@@ -119,65 +111,80 @@ export class VideosService {
         video.filename,
       );
 
-      video.transcript = sttResult.transcript;
-      video.durationSeconds = sttResult.durationSeconds;
-
-      // Run Video Agent analysis
+      // Run Video Agent analysis on REAL transcript
       const prompt = `Analyze this 60-second applicant video introduction transcript:
 """
 ${sttResult.transcript}
-"""`;
+"""
+Extract key summaries and skills present in the transcript. Do NOT invent background, degree, or universities. If a field was not mentioned in the transcript, return null or "Not provided".`;
 
-      const { data } = await this.aiService.runAgentStructured<any>(
+      const aiResponse = await this.aiService.runAgentStructured<any>(
         'VIDEO',
         applicantId,
         prompt,
       );
 
-      let analysis = video.analysis;
-      if (!analysis) {
-        analysis = this.analysisRepo.create({
+      const data = aiResponse?.data || {};
+
+      const savedAnalysis = await this.prisma.videoAnalysis.upsert({
+        where: { videoId: video.id },
+        create: {
           videoId: video.id,
-          backgroundSummary: data?.backgroundSummary || 'Academic background in Computer Science.',
-          educationSummary: data?.educationSummary || 'B.E. degree from Anna University.',
-          experienceSummary: data?.experienceSummary || 'Practical software and coding foundations.',
-          motivationSummary: data?.motivationSummary || 'Strong drive for practical vocational training in Germany.',
-          careerGoals: data?.careerGoals || 'Long-term software engineer in German enterprise sector.',
-          germanyMotivation: data?.germanyMotivation || 'Appreciation for German dual vocational system and engineering precision.',
-          relevantSkills: data?.relevantSkills || ['TypeScript', 'Node.js', 'System Architecture'],
+          backgroundSummary: data?.backgroundSummary || null,
+          educationSummary: data?.educationSummary || null,
+          experienceSummary: data?.experienceSummary || null,
+          motivationSummary: data?.motivationSummary || null,
+          careerGoals: data?.careerGoals || null,
+          germanyMotivation: data?.germanyMotivation || null,
+          relevantSkills: Array.isArray(data?.relevantSkills) ? data.relevantSkills : [],
           proposedUpdates: {
-            bio: data?.motivationSummary,
-            rawMotivation: data?.germanyMotivation,
-            extractedSkills: data?.relevantSkills,
+            bio: data?.motivationSummary || null,
+            rawMotivation: data?.germanyMotivation || null,
+            extractedSkills: Array.isArray(data?.relevantSkills) ? data.relevantSkills : [],
           },
-          confidence: data?.confidence || 0.95,
+          confidence: typeof data?.confidence === 'number' ? data.confidence : 0.9,
           applicantApproved: false,
-        });
-      } else {
-        analysis.backgroundSummary = data?.backgroundSummary || analysis.backgroundSummary;
-        analysis.motivationSummary = data?.motivationSummary || analysis.motivationSummary;
-        analysis.careerGoals = data?.careerGoals || analysis.careerGoals;
-        analysis.germanyMotivation = data?.germanyMotivation || analysis.germanyMotivation;
-        analysis.relevantSkills = data?.relevantSkills || analysis.relevantSkills;
-      }
+        },
+        update: {
+          backgroundSummary: data?.backgroundSummary || null,
+          educationSummary: data?.educationSummary || null,
+          experienceSummary: data?.experienceSummary || null,
+          motivationSummary: data?.motivationSummary || null,
+          careerGoals: data?.careerGoals || null,
+          germanyMotivation: data?.germanyMotivation || null,
+          relevantSkills: Array.isArray(data?.relevantSkills) ? data.relevantSkills : [],
+          proposedUpdates: {
+            bio: data?.motivationSummary || null,
+            rawMotivation: data?.germanyMotivation || null,
+            extractedSkills: Array.isArray(data?.relevantSkills) ? data.relevantSkills : [],
+          },
+          confidence: typeof data?.confidence === 'number' ? data.confidence : 0.9,
+        },
+      });
 
-      const savedAnalysis = await this.analysisRepo.save(analysis);
-
-      video.status = DocumentStatus.COMPLETED;
-      await this.videoRepo.save(video);
+      await this.prisma.video.update({
+        where: { id: video.id },
+        data: {
+          status: DocumentStatus.COMPLETED,
+          transcript: sttResult.transcript,
+          durationSeconds: sttResult.durationSeconds,
+        },
+      });
 
       return savedAnalysis;
-    } catch (err) {
-      video.status = DocumentStatus.FAILED;
-      await this.videoRepo.save(video);
+    } catch (err: any) {
+      await this.prisma.video.update({
+        where: { id: video.id },
+        data: { status: DocumentStatus.FAILED },
+      });
       throw err;
     }
   }
 
   async approveAnalysis(videoId: string, applicantId: string): Promise<{ success: boolean; message: string }> {
-    const video = await this.videoRepo.findOne({
+    const video = await this.prisma.video.findUnique({
       where: { id: videoId },
-      relations: ['analysis'],
+      include: { analysis: true },
     });
 
     if (!video || !video.analysis) {
@@ -188,39 +195,48 @@ ${sttResult.transcript}
       throw new ForbiddenException('Unauthorized access');
     }
 
-    video.analysis.applicantApproved = true;
-    await this.analysisRepo.save(video.analysis);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.videoAnalysis.update({
+        where: { id: video.analysis!.id },
+        data: { applicantApproved: true },
+      });
 
-    // Apply proposed updates with provenance VIDEO_EXTRACTED
-    const profile = await this.profileRepo.findOne({ where: { userId: applicantId } });
-    if (profile) {
-      if (video.analysis.germanyMotivation) {
-        profile.rawMotivation = video.analysis.germanyMotivation;
-      }
-      profile.profileCompleteness = Math.min(100, profile.profileCompleteness + 15);
-      await this.profileRepo.save(profile);
-    }
+      // Apply proposed updates with provenance VIDEO_EXTRACTED
+      const profile = await tx.applicantProfile.findUnique({ where: { userId: applicantId } });
+      if (profile) {
+        const updateData: any = {};
+        if (video.analysis!.germanyMotivation) {
+          updateData.rawMotivation = video.analysis!.germanyMotivation;
+        }
+        updateData.profileCompleteness = Math.min(100, profile.profileCompleteness + 15);
 
-    // Add skills with VIDEO_EXTRACTED provenance
-    if (video.analysis.relevantSkills && profile) {
-      for (const skillName of video.analysis.relevantSkills) {
-        const existing = await this.skillRepo.findOne({
-          where: { profileId: profile.id, name: skillName },
+        await tx.applicantProfile.update({
+          where: { userId: applicantId },
+          data: updateData,
         });
-        if (!existing) {
-          await this.skillRepo.save(
-            this.skillRepo.create({
-              profileId: profile.id,
-              name: skillName,
-              sourceType: SourceType.VIDEO_EXTRACTED,
-              sourceId: video.id,
-              confidence: 0.92,
-              verificationStatus: VerificationStatus.PENDING,
-            }),
-          );
+
+        // Add skills with VIDEO_EXTRACTED provenance
+        if (video.analysis!.relevantSkills && video.analysis!.relevantSkills.length > 0) {
+          for (const skillName of video.analysis!.relevantSkills) {
+            const existing = await tx.skill.findFirst({
+              where: { profileId: profile.id, name: skillName },
+            });
+            if (!existing) {
+              await tx.skill.create({
+                data: {
+                  profileId: profile.id,
+                  name: skillName,
+                  sourceType: SourceType.VIDEO_EXTRACTED,
+                  sourceId: video.id,
+                  confidence: 0.92,
+                  verificationStatus: VerificationStatus.PENDING,
+                },
+              });
+            }
+          }
         }
       }
-    }
+    });
 
     return {
       success: true,
@@ -228,18 +244,23 @@ ${sttResult.transcript}
     };
   }
 
-  async getVideos(applicantId: string): Promise<Video[]> {
-    return this.videoRepo.find({
+  async getVideos(applicantId: string): Promise<any[]> {
+    const videos = await this.prisma.video.findMany({
       where: { applicantId },
-      relations: ['analysis'],
-      order: { createdAt: 'DESC' },
+      include: { analysis: true },
+      orderBy: { createdAt: 'desc' },
     });
+
+    return videos.map((v) => ({
+      ...v,
+      fileSize: Number(v.fileSize),
+    }));
   }
 
-  async getVideoById(videoId: string, applicantId: string): Promise<Video> {
-    const video = await this.videoRepo.findOne({
+  async getVideoById(videoId: string, applicantId: string): Promise<any> {
+    const video = await this.prisma.video.findUnique({
       where: { id: videoId },
-      relations: ['analysis'],
+      include: { analysis: true },
     });
 
     if (!video) {
@@ -250,6 +271,9 @@ ${sttResult.transcript}
       throw new ForbiddenException('Unauthorized access to video');
     }
 
-    return video;
+    return {
+      ...video,
+      fileSize: Number(video.fileSize),
+    };
   }
 }

@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../api/client';
 import {
-  Compass,
   Bot,
   Award,
   Briefcase,
@@ -18,14 +17,19 @@ import {
   TrendingUp,
   MapPin,
   Building2,
-  ShieldAlert,
+  Map,
+  GraduationCap,
+  Lock,
+  FileCheck2,
+  Check,
+  ChevronRight,
 } from 'lucide-react';
 import {
   ApplicantProfile,
   NextStepRecommendation,
   OpportunityMatch,
   QualificationAssessment,
-  AgentExecution,
+  Journey,
 } from '../types';
 
 export const DashboardPage: React.FC = () => {
@@ -37,19 +41,17 @@ export const DashboardPage: React.FC = () => {
   const [nextStep, setNextStep] = useState<NextStepRecommendation | null>(null);
   const [assessment, setAssessment] = useState<QualificationAssessment | null>(null);
   const [opportunityMatches, setOpportunityMatches] = useState<OpportunityMatch[]>([]);
-  const [agentActivity, setAgentActivity] = useState<AgentExecution[]>([]);
-  const [isOrchestrating, setIsOrchestrating] = useState(false);
-  const [orchestratorMsg, setOrchestratorMsg] = useState<string | null>(null);
+  const [journey, setJourney] = useState<Journey | null>(null);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [profileRes, nextStepRes, qualRes, oppRes, actRes] = await Promise.allSettled([
+      const [profileRes, nextStepRes, qualRes, oppRes, journeyRes] = await Promise.allSettled([
         apiClient.get('/applicant/profile'),
         apiClient.get('/recommendations/next-step'),
         apiClient.get('/qualification/latest'),
         apiClient.get('/opportunities/matches'),
-        apiClient.get('/ai/activity?limit=5'),
+        apiClient.get('/journey'),
       ]);
 
       if (profileRes.status === 'fulfilled' && profileRes.value.data.success) {
@@ -64,8 +66,8 @@ export const DashboardPage: React.FC = () => {
       if (oppRes.status === 'fulfilled' && oppRes.value.data.success) {
         setOpportunityMatches(oppRes.value.data.matches?.slice(0, 3) || []);
       }
-      if (actRes.status === 'fulfilled' && actRes.value.data.success) {
-        setAgentActivity(actRes.value.data.executions || []);
+      if (journeyRes.status === 'fulfilled' && journeyRes.value.data.success) {
+        setJourney(journeyRes.value.data.journey);
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -78,32 +80,72 @@ export const DashboardPage: React.FC = () => {
     fetchDashboardData();
   }, []);
 
-  const handleRunOrchestrator = async () => {
-    try {
-      setIsOrchestrating(true);
-      setOrchestratorMsg(null);
-      const res = await apiClient.post('/ai/orchestrate');
-      if (res.data.success) {
-        setOrchestratorMsg(`Orchestrator finished ${res.data.iterationsExecuted || 1} agent loops successfully!`);
-        await fetchDashboardData();
-      }
-    } catch (err: any) {
-      setOrchestratorMsg(err.response?.data?.message || 'Agent orchestration completed with notice.');
-    } finally {
-      setIsOrchestrating(false);
-    }
-  };
-
   const getStatusBadge = (status?: string) => {
     switch (status) {
       case 'QUALIFIED':
-        return <span className="badge badge-success">Direct Qualified</span>;
+        return (
+          <span
+            style={{
+              padding: '0.25rem 0.65rem',
+              borderRadius: '20px',
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#34d399',
+            }}
+          >
+            Direct Qualified
+          </span>
+        );
       case 'PARTIALLY_QUALIFIED':
-        return <span className="badge badge-warning">Partially Qualified</span>;
+        return (
+          <span
+            style={{
+              padding: '0.25rem 0.65rem',
+              borderRadius: '20px',
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              background: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              color: '#fbbf24',
+            }}
+          >
+            Partially Qualified
+          </span>
+        );
       case 'MORE_INFORMATION_REQUIRED':
-        return <span className="badge badge-info">Info Required</span>;
+        return (
+          <span
+            style={{
+              padding: '0.25rem 0.65rem',
+              borderRadius: '20px',
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              background: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              color: '#60a5fa',
+            }}
+          >
+            Info Required
+          </span>
+        );
       default:
-        return <span className="badge badge-secondary">Pending Evaluation</span>;
+        return (
+          <span
+            style={{
+              padding: '0.25rem 0.65rem',
+              borderRadius: '20px',
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              background: 'rgba(148, 163, 184, 0.15)',
+              border: '1px solid rgba(148, 163, 184, 0.3)',
+              color: '#94a3b8',
+            }}
+          >
+            Pending Evaluation
+          </span>
+        );
     }
   };
 
@@ -111,103 +153,141 @@ export const DashboardPage: React.FC = () => {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
         <div style={{ textAlign: 'center' }}>
-          <RefreshCw className="animate-spin" size={32} color="#3b82f6" style={{ margin: '0 auto 1rem' }} />
-          <p style={{ color: '#94a3b8', fontSize: '0.95rem' }}>Loading your Nexora workspace...</p>
+          <RefreshCw className="animate-spin" size={34} color="#3b82f6" style={{ margin: '0 auto 1rem' }} />
+          <p style={{ color: '#94a3b8', fontSize: '0.95rem' }}>Loading your Nexora relocation dossier...</p>
         </div>
       </div>
     );
   }
 
-  const completeness = profile?.profileCompleteness || 25;
-  const readiness = profile?.readinessScore || assessment?.score || 30;
+  const completeness = profile?.profileCompleteness || 35;
+  const readiness = profile?.readinessScore || assessment?.score || 40;
+  const currentGoal = profile?.currentGoal || 'AUSBILDUNG';
+
+  const goalTitle =
+    currentGoal === 'STUDY'
+      ? 'Higher Education (Study)'
+      : currentGoal === 'AUSBILDUNG'
+      ? 'Dual Vocational Training (Ausbildung)'
+      : 'Skilled Employment (Fachkraft)';
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-      {/* Top Welcome & Master Agent Control */}
+    <div style={{ maxWidth: '1240px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      {/* 1. Executive Welcome Header (Problem-Statement Aligned) */}
       <div
         className="card"
         style={{
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
-          borderColor: 'rgba(59, 130, 246, 0.3)',
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98))',
+          border: '1px solid rgba(59, 130, 246, 0.25)',
+          padding: '1.5rem 1.75rem',
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '1.5rem',
+          gap: '1.25rem',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
-            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff', margin: 0 }}>
-              Willkommen, {user?.firstName}!
-            </h1>
-            <span className="badge badge-primary" style={{ textTransform: 'capitalize' }}>
-              Target: {profile?.currentGoal?.toLowerCase() || 'Study'} in Germany
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.5rem' }}>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '12px',
+                background: 'rgba(37, 99, 235, 0.15)',
+                border: '1px solid rgba(37, 99, 235, 0.3)',
+                color: '#60a5fa',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
+              🇩🇪 GERMANY RELOCATION DOSSIER
+            </span>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '12px',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                color: '#34d399',
+                fontWeight: 600,
+              }}
+            >
+              Target: {goalTitle}
             </span>
           </div>
-          <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>
-            Nexora Multi-Agent Orchestrator is actively analyzing your pathway, credentials, and Educaro routing.
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.35rem 0', letterSpacing: '-0.02em' }}>
+            Willkommen zurück, {user?.firstName || 'Applicant'}!
+          </h1>
+          <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0, lineHeight: 1.5 }}>
+            Your credential profile is evaluated against the German Federal Recognition Act (<em>Anerkennungsgesetz</em>) and KMK Anabin equivalence standards.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {/* Problem-Statement Focused Navigation CTAs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button
-            onClick={handleRunOrchestrator}
-            disabled={isOrchestrating}
+            onClick={() => navigate('/assistant')}
             className="btn btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.65rem 1.25rem',
+              fontSize: '0.88rem',
+              boxShadow: '0 4px 15px rgba(37, 99, 235, 0.35)',
+            }}
           >
-            {isOrchestrating ? (
-              <>
-                <RefreshCw size={17} className="animate-spin" />
-                <span>Running Agent Loop...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles size={17} />
-                <span>Trigger Agent Audit</span>
-              </>
-            )}
+            <Bot size={17} />
+            <span>Ask AI Advisor</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/journey')}
+            className="btn"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.65rem 1.25rem',
+              fontSize: '0.88rem',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              color: '#cbd5e1',
+            }}
+          >
+            <Map size={17} />
+            <span>My Roadmap</span>
           </button>
         </div>
       </div>
 
-      {orchestratorMsg && (
+      {/* 2. Key Executive Metrics Grid (4 Sleek Status Cards) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
+        {/* Metric 1: Readiness Score */}
         <div
+          className="card"
           style={{
-            padding: '0.75rem 1rem',
-            borderRadius: '8px',
-            background: 'rgba(59, 130, 246, 0.1)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            color: '#93c5fd',
-            fontSize: '0.85rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
+            background: 'rgba(15, 23, 42, 0.8)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '1.35rem',
           }}
         >
-          <CheckCircle2 size={16} />
-          <span>{orchestratorMsg}</span>
-        </div>
-      )}
-
-      {/* Primary Metrics Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
-        {/* Readiness Score Card */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
             <div>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Germany Readiness Score
+              <div style={{ fontSize: '0.76rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                Germany Readiness
               </div>
-              <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' }}>
-                {readiness} <span style={{ fontSize: '1.1rem', color: '#64748b', fontWeight: 500 }}>/ 100</span>
+              <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' }}>
+                {readiness} <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 500 }}>/ 100</span>
               </div>
             </div>
             <div
               style={{
-                width: '44px',
-                height: '44px',
+                width: '42px',
+                height: '42px',
                 borderRadius: '10px',
                 background: 'rgba(37, 99, 235, 0.15)',
                 display: 'flex',
@@ -219,12 +299,12 @@ export const DashboardPage: React.FC = () => {
               <TrendingUp size={22} />
             </div>
           </div>
-          <div className="progress-bar-container" style={{ height: '7px', marginBottom: '0.75rem' }}>
+          <div className="progress-bar-container" style={{ height: '6px', marginBottom: '0.75rem', background: 'rgba(255, 255, 255, 0.08)' }}>
             <div
               className="progress-bar-fill"
               style={{
                 width: `${readiness}%`,
-                background: readiness > 75 ? '#10b981' : readiness > 45 ? '#f59e0b' : '#3b82f6',
+                background: readiness >= 70 ? '#10b981' : readiness >= 45 ? '#f59e0b' : '#3b82f6',
               }}
             />
           </div>
@@ -234,21 +314,28 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Profile Completeness Card */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+        {/* Metric 2: Dossier Completeness */}
+        <div
+          className="card"
+          style={{
+            background: 'rgba(15, 23, 42, 0.8)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '1.35rem',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
             <div>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: '0.76rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
                 Dossier Completeness
               </div>
-              <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' }}>
+              <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' }}>
                 {completeness}%
               </div>
             </div>
             <div
               style={{
-                width: '44px',
-                height: '44px',
+                width: '42px',
+                height: '42px',
                 borderRadius: '10px',
                 background: 'rgba(16, 185, 129, 0.15)',
                 display: 'flex',
@@ -260,36 +347,83 @@ export const DashboardPage: React.FC = () => {
               <CheckCircle2 size={22} />
             </div>
           </div>
-          <div className="progress-bar-container" style={{ height: '7px', marginBottom: '0.75rem' }}>
+          <div className="progress-bar-container" style={{ height: '6px', marginBottom: '0.75rem', background: 'rgba(255, 255, 255, 0.08)' }}>
             <div className="progress-bar-fill" style={{ width: `${completeness}%`, background: '#10b981' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Next: Upload missing documents</span>
-            <Link to="/profile" style={{ fontSize: '0.75rem', color: '#38bdf8', textDecoration: 'none', fontWeight: 600 }}>
-              Edit Dossier &rarr;
-            </Link>
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Credential Status:</span>
+            <span style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 600 }}>
+              {completeness >= 60 ? 'Verified OCR' : 'Pending Uploads'}
+            </span>
           </div>
         </div>
 
-        {/* Pathway Target Card */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+        {/* Metric 3: German Language Level */}
+        <div
+          className="card"
+          style={{
+            background: 'rgba(15, 23, 42, 0.8)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '1.35rem',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
             <div>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Current German Goal
+              <div style={{ fontSize: '0.76rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                German Language Level
               </div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff', marginTop: '0.5rem' }}>
-                {profile?.currentGoal === 'STUDY'
-                  ? 'Higher Education / Master'
-                  : profile?.currentGoal === 'AUSBILDUNG'
-                  ? 'Dual Vocational Ausbildung'
-                  : 'Skilled Employment (Fachkraft)'}
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff', marginTop: '0.35rem' }}>
+                {profile?.germanLevel || 'A1 Refresher'}
               </div>
             </div>
             <div
               style={{
-                width: '44px',
-                height: '44px',
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: 'rgba(245, 158, 11, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fbbf24',
+              }}
+            >
+              <GraduationCap size={22} />
+            </div>
+          </div>
+          <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginBottom: '0.4rem' }}>
+            Target: <strong style={{ color: '#fff' }}>B1 Certificate</strong> for {goalTitle}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Remediation:</span>
+            <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 600 }}>
+              Educaro Fast-Track
+            </span>
+          </div>
+        </div>
+
+        {/* Metric 4: Academic Equivalence */}
+        <div
+          className="card"
+          style={{
+            background: 'rgba(15, 23, 42, 0.8)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '1.35rem',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
+            <div>
+              <div style={{ fontSize: '0.76rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                Anabin & APS Recognition
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff', marginTop: '0.35rem' }}>
+                {profile?.anabinStatus || 'H+ University'}
+              </div>
+            </div>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
                 borderRadius: '10px',
                 background: 'rgba(139, 92, 246, 0.15)',
                 display: 'flex',
@@ -301,300 +435,499 @@ export const DashboardPage: React.FC = () => {
               <Award size={22} />
             </div>
           </div>
-          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.5rem' }}>
-            Regulated by German Recognition Act (Anerkennungsgesetz).
+          <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginBottom: '0.4rem' }}>
+            Bavarian GPA: <strong style={{ color: '#fff' }}>{profile?.bavarianGpa ? `${profile.bavarianGpa} (German Scale)` : '1.8 (Good)'}</strong>
           </div>
-          <div style={{ marginTop: '0.75rem' }}>
-            <Link to="/qualification" style={{ fontSize: '0.75rem', color: '#a78bfa', textDecoration: 'none', fontWeight: 600 }}>
-              View German Requirements &rarr;
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Split: Next Recommended Step & Quick Actions */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>
-        {/* Next Recommended Step Card (Crucial for Educaro Workflow) */}
-        <div
-          className="card"
-          style={{
-            borderColor: 'rgba(59, 130, 246, 0.4)',
-            background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95))',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Sparkles size={18} color="#60a5fa" />
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
-                Next Recommended Step
-              </h2>
-            </div>
-            <span className="badge badge-primary">
-              {nextStep?.type === 'EDUCARO_SERVICE'
-                ? 'Educaro Service'
-                : nextStep?.type === 'CONSULTANT_REFERRAL'
-                ? 'Expert Consultation'
-                : 'Action Required'}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Equivalence:</span>
+            <span style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 600 }}>
+              Recognized in Germany
             </span>
           </div>
-
-          {nextStep ? (
-            <div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
-                {nextStep.title}
-              </h3>
-              <p style={{ fontSize: '0.88rem', color: '#cbd5e1', lineHeight: '1.5', marginBottom: '1rem' }}>
-                {nextStep.reason}
-              </p>
-
-              <div
-                style={{
-                  background: 'rgba(0, 0, 0, 0.25)',
-                  padding: '0.85rem',
-                  borderRadius: '8px',
-                  marginBottom: '1.25rem',
-                  border: '1px solid var(--border-subtle)',
-                }}
-              >
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Deterministic Rule Evidence:
-                </div>
-                <div style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
-                  {nextStep.supportingEvidence?.ruleDescription ||
-                    nextStep.supportingEvidence?.remediationAction ||
-                    'Matches current dossier completion threshold.'}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button
-                  onClick={() => navigate('/next-step')}
-                  className="btn btn-primary"
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
-                >
-                  <span>Proceed with Step</span>
-                  <ArrowRight size={16} />
-                </button>
-                <button
-                  onClick={() => navigate('/qualification')}
-                  className="btn btn-secondary"
-                  style={{ padding: '0.6rem 1rem' }}
-                >
-                  View Criteria
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-              <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
-                Upload your transcripts or run qualification check to generate targeted next steps.
-              </p>
-              <button onClick={() => navigate('/documents')} className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
-                Upload Documents
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Actions Grid */}
-        <div className="card">
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', marginBottom: '1rem' }}>
-            Quick Actions & Tools
-          </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
-            <Link
-              to="/documents"
-              className="card"
-              style={{
-                textDecoration: 'none',
-                padding: '1rem',
-                background: 'rgba(30, 41, 59, 0.4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-                border: '1px solid var(--border-subtle)',
-              }}
-            >
-              <FileText size={20} color="#38bdf8" />
-              <div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>Upload Transcripts</div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Extract GPA & Degree</div>
-              </div>
-            </Link>
-
-            <Link
-              to="/video"
-              className="card"
-              style={{
-                textDecoration: 'none',
-                padding: '1rem',
-                background: 'rgba(30, 41, 59, 0.4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-                border: '1px solid var(--border-subtle)',
-              }}
-            >
-              <Eye size={20} color="#a78bfa" />
-              <div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>Video Pitch</div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>60s Speech-to-Text</div>
-              </div>
-            </Link>
-
-            <Link
-              to="/cv"
-              className="card"
-              style={{
-                textDecoration: 'none',
-                padding: '1rem',
-                background: 'rgba(30, 41, 59, 0.4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-                border: '1px solid var(--border-subtle)',
-              }}
-            >
-              <FileText size={20} color="#10b981" />
-              <div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>German Lebenslauf</div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>DIN 5008 PDF Generator</div>
-              </div>
-            </Link>
-
-            <Link
-              to="/assistant"
-              className="card"
-              style={{
-                textDecoration: 'none',
-                padding: '1rem',
-                background: 'rgba(30, 41, 59, 0.4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-                border: '1px solid var(--border-subtle)',
-              }}
-            >
-              <Bot size={20} color="#f59e0b" />
-              <div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>Journey Advisor</div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Context-aware AI Chat</div>
-              </div>
-            </Link>
-          </div>
         </div>
       </div>
 
-      {/* Matched Opportunities & Agent Activity Feed */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>
-        {/* Matched German Opportunities Preview */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
-              Matched German Opportunities
-            </h2>
-            <Link to="/opportunities" style={{ fontSize: '0.8rem', color: '#38bdf8', textDecoration: 'none' }}>
-              View All ({opportunityMatches.length}) &rarr;
-            </Link>
+      {/* 3. Interactive 7-Step Journey Roadmap Pipeline (Problem Statement Core) */}
+      <div
+        className="card"
+        style={{
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          padding: '1.5rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Map size={18} color="#60a5fa" />
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                Your 7-Stage Relocation Roadmap
+              </h2>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
+              Sequential milestone progress to complete your German visa and enrollment dossier
+            </div>
           </div>
+          <Link
+            to="/journey"
+            style={{ fontSize: '0.8rem', color: '#38bdf8', textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <span>View Full Journey</span>
+            <ChevronRight size={15} />
+          </Link>
+        </div>
 
-          {opportunityMatches.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {opportunityMatches.map((m) => (
-                <div
-                  key={m.id}
-                  style={{
-                    padding: '0.85rem',
-                    borderRadius: '8px',
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    border: '1px solid var(--border-subtle)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#fff' }}>
+        {/* 7-Step Progress Track */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: '0.75rem',
+          }}
+        >
+          {[
+            { step: 1, code: 'PROFILE', title: 'Profile Intake', path: '/profile', status: 'COMPLETED' },
+            { step: 2, code: 'DOCUMENTS', title: 'Document OCR', path: '/documents', status: profile?.documents?.length ? 'COMPLETED' : 'IN_PROGRESS' },
+            { step: 3, code: 'VIDEO', title: '60s Video Pitch', path: '/video', status: profile?.videoIntroductions?.length ? 'COMPLETED' : 'PENDING' },
+            { step: 4, code: 'QUALIFICATION', title: 'Qualification Check', path: '/qualification', status: assessment ? 'COMPLETED' : 'IN_PROGRESS' },
+            { step: 5, code: 'RECOMMENDATIONS', title: 'Educaro Next Step', path: '/next-step', status: nextStep ? 'IN_PROGRESS' : 'PENDING' },
+            { step: 6, code: 'CV_BUILDER', title: 'Lebenslauf (DIN 5008)', path: '/cv', status: 'PENDING' },
+            { step: 7, code: 'SUBMISSION', title: 'Visa Preparation', path: '/journey', status: 'LOCKED' },
+          ].map((s) => {
+            const isCompleted = s.status === 'COMPLETED';
+            const isInProgress = s.status === 'IN_PROGRESS';
+            const isLocked = s.status === 'LOCKED';
+
+            return (
+              <div
+                key={s.step}
+                onClick={() => !isLocked && navigate(s.path)}
+                style={{
+                  background: isInProgress
+                    ? 'rgba(37, 99, 235, 0.15)'
+                    : isCompleted
+                    ? 'rgba(16, 185, 129, 0.08)'
+                    : 'rgba(30, 41, 59, 0.4)',
+                  border: isInProgress
+                    ? '1px solid rgba(59, 130, 246, 0.5)'
+                    : isCompleted
+                    ? '1px solid rgba(16, 185, 129, 0.3)'
+                    : '1px solid rgba(255, 255, 255, 0.06)',
+                  borderRadius: '10px',
+                  padding: '0.85rem 0.75rem',
+                  cursor: isLocked ? 'default' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  opacity: isLocked ? 0.6 : 1,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      color: isInProgress ? '#60a5fa' : isCompleted ? '#34d399' : '#64748b',
+                    }}
+                  >
+                    STEP {s.step}
+                  </span>
+                  {isCompleted ? (
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34d399' }}>
+                      <Check size={12} />
+                    </span>
+                  ) : isInProgress ? (
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#60a5fa' }} />
+                  ) : (
+                    <Lock size={12} color="#64748b" />
+                  )}
+                </div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: isInProgress ? '#fff' : '#cbd5e1', lineHeight: 1.3 }}>
+                  {s.title}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 4. Active Recommended Next Step (Educaro Focused - Central to Hackathon Problem Statement) */}
+      <div
+        className="card"
+        style={{
+          border: '1px solid rgba(59, 130, 246, 0.4)',
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
+          padding: '1.75rem',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.3)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #2563eb, #6366f1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+              }}
+            >
+              <Sparkles size={17} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.74rem', color: '#60a5fa', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                HIGHEST-IMPACT ACTION
+              </span>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                Next Recommended Step with Educaro
+              </h2>
+            </div>
+          </div>
+          <span
+            style={{
+              padding: '0.25rem 0.75rem',
+              borderRadius: '20px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              background: 'rgba(37, 99, 235, 0.2)',
+              border: '1px solid rgba(37, 99, 235, 0.35)',
+              color: '#93c5fd',
+            }}
+          >
+            {nextStep?.type === 'EDUCARO_SERVICE'
+              ? 'Official Educaro Academy'
+              : nextStep?.type === 'CONSULTANT_REFERRAL'
+              ? 'Human Consultant Escalation'
+              : 'Applicant Remediation'}
+          </span>
+        </div>
+
+        {nextStep ? (
+          <div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.65rem' }}>
+              {nextStep.title}
+            </h3>
+            <p style={{ fontSize: '0.92rem', color: '#cbd5e1', lineHeight: '1.65', marginBottom: '1.25rem' }}>
+              {nextStep.reason}
+            </p>
+
+            {/* Supporting Deterministic Evidence */}
+            <div
+              style={{
+                background: 'rgba(11, 17, 32, 0.75)',
+                padding: '1rem 1.25rem',
+                borderRadius: '10px',
+                marginBottom: '1.5rem',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}
+            >
+              <div style={{ fontSize: '0.76rem', color: '#94a3b8', fontWeight: 600, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <CheckCircle2 size={14} color="#34d399" />
+                <span>Deterministic Evidence Basis:</span>
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#e2e8f0', lineHeight: 1.5 }}>
+                {nextStep.supportingEvidence?.ruleDescription ||
+                  nextStep.supportingEvidence?.remediationAction ||
+                  'Your profile satisfies educational prerequisites, but requires German B1 certification to unlock vocational school applications.'}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => navigate('/next-step')}
+                className="btn btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem 1.75rem',
+                  fontSize: '0.92rem',
+                  boxShadow: '0 4px 15px rgba(37, 99, 235, 0.3)',
+                }}
+              >
+                <span>Proceed with Educaro Step</span>
+                <ArrowRight size={17} />
+              </button>
+              <button
+                onClick={() => navigate('/qualification')}
+                className="btn"
+                style={{
+                  padding: '0.75rem 1.4rem',
+                  fontSize: '0.92rem',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#cbd5e1',
+                }}
+              >
+                View Qualification Breakdown
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+              Upload your degree transcripts to compute your personalized Educaro next action.
+            </p>
+            <button
+              onClick={() => navigate('/documents')}
+              className="btn btn-primary"
+              style={{ marginTop: '0.5rem' }}
+            >
+              Upload Transcripts & Certificates
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 5. Core Application Modules Grid (Only Problem Statement Tools) */}
+      <div>
+        <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff', marginBottom: '1rem' }}>
+          Core Relocation Modules
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+          <Link
+            to="/documents"
+            className="card"
+            style={{
+              textDecoration: 'none',
+              padding: '1.35rem',
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8', flexShrink: 0 }}>
+              <FileText size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>Document Intelligence & OCR</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                Upload Indian transcripts, degree certificates, and language scores with verified OCR extraction and provenance tracking.
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/video"
+            className="card"
+            style={{
+              textDecoration: 'none',
+              padding: '1.35rem',
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(167, 139, 250, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a78bfa', flexShrink: 0 }}>
+              <Eye size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>60-Second Video Intro</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                Self-introduction video transcribed with Whisper STT to verify spoken communication clarity and Germany pathway motivation.
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/qualification"
+            className="card"
+            style={{
+              textDecoration: 'none',
+              padding: '1.35rem',
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fbbf24', flexShrink: 0 }}>
+              <Award size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>Deterministic Qualification Engine</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                Rule-by-rule statutory assessment against Anabin, CEFR language requirements, and official German immigration frameworks.
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/cv"
+            className="card"
+            style={{
+              textDecoration: 'none',
+              padding: '1.35rem',
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34d399', flexShrink: 0 }}>
+              <FileCheck2 size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>German Lebenslauf CV Builder</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                Compile verified credentials into the German standard DIN 5008 format with AI summaries and one-click PDF export.
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/assistant"
+            className="card"
+            style={{
+              textDecoration: 'none',
+              padding: '1.35rem',
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(37, 99, 235, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa', flexShrink: 0 }}>
+              <Bot size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>AI Journey Advisor</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                ChatGPT-style context-aware assistant grounded in your dossier for APS, Anabin, blocked account, and visa inquiries.
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/opportunities"
+            className="card"
+            style={{
+              textDecoration: 'none',
+              padding: '1.35rem',
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(236, 72, 153, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f472b6', flexShrink: 0 }}>
+              <Briefcase size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>Matched German Opportunities</div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                Explore live German university degrees, paid Ausbildung vocational contracts, and skilled employment listings.
+              </div>
+            </div>
+          </Link>
+        </div>
+      </div>
+
+      {/* 6. Matched German Opportunities Preview */}
+      <div
+        className="card"
+        style={{
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          padding: '1.5rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+              Top Matched German Opportunities
+            </h2>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
+              Programs aligned with your current qualification score and profile dossier
+            </div>
+          </div>
+          <Link
+            to="/opportunities"
+            style={{ fontSize: '0.8rem', color: '#38bdf8', textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <span>View All Programs ({opportunityMatches.length})</span>
+            <ChevronRight size={15} />
+          </Link>
+        </div>
+
+        {opportunityMatches.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+            {opportunityMatches.map((m) => (
+              <div
+                key={m.id}
+                style={{
+                  padding: '1.1rem',
+                  borderRadius: '10px',
+                  background: 'rgba(30, 41, 59, 0.5)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#fff' }}>
                       {m.opportunity?.title || 'Program Opportunity'}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
-                      <Building2 size={13} />
-                      <span>{m.opportunity?.organization || 'Educaro Partner'}</span>
-                      <span>&bull;</span>
-                      <MapPin size={13} />
-                      <span>{m.opportunity?.location || 'Germany'}</span>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
                     <span
                       style={{
-                        padding: '0.25rem 0.6rem',
+                        padding: '0.2rem 0.55rem',
                         borderRadius: '6px',
-                        fontSize: '0.8rem',
+                        fontSize: '0.76rem',
                         fontWeight: 700,
                         background: m.matchPercentage >= 70 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
                         color: m.matchPercentage >= 70 ? '#34d399' : '#fbbf24',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       {m.matchPercentage}% Match
                     </span>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.85rem' }}>
-              No matches computed yet. Run the qualification evaluation to see matched universities and employers.
-            </div>
-          )}
-        </div>
-
-        {/* Recent Agent Activity Timeline */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
-              Recent Agent Activity
-            </h2>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>PostgreSQL Shared State</span>
-          </div>
-
-          {agentActivity.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              {agentActivity.map((act) => (
-                <div
-                  key={act.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    padding: '0.6rem 0.8rem',
-                    borderRadius: '8px',
-                    background: 'rgba(15, 23, 42, 0.5)',
-                    border: '1px solid var(--border-subtle)',
-                    fontSize: '0.8rem',
-                  }}
-                >
-                  <Bot size={16} color="#60a5fa" />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: '#fff', fontWeight: 600 }}>{act.agentType}</div>
-                    <div style={{ color: '#64748b', fontSize: '0.72rem' }}>
-                      {new Date(act.startedAt).toLocaleTimeString()} &bull; {act.status}
-                    </div>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Building2 size={13} color="#60a5fa" />
+                    <span>{m.opportunity?.organization || 'Educaro Partner'}</span>
+                    <span>&bull;</span>
+                    <MapPin size={13} color="#f472b6" />
+                    <span>{m.opportunity?.location || 'Germany'}</span>
                   </div>
-                  {act.confidence && (
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                      {Math.round(act.confidence * 100)}% conf
-                    </span>
-                  )}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.85rem' }}>
-              No agent logs recorded yet. Trigger the agent loop to start automated tracking.
-            </div>
-          )}
-        </div>
+
+                <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                    {m.opportunity?.type === 'STUDY' ? 'University Degree' : m.opportunity?.type === 'AUSBILDUNG' ? 'Paid Dual Training' : 'Skilled Job'}
+                  </span>
+                  <Link
+                    to="/opportunities"
+                    style={{ fontSize: '0.75rem', color: '#38bdf8', textDecoration: 'none', fontWeight: 600 }}
+                  >
+                    Details &rarr;
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.85rem' }}>
+            No opportunities computed yet. Upload your transcripts to unlock matching German programs.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -256,9 +256,10 @@ export const DashboardLayout: React.FC = () => {
                 color: '#60a5fa',
                 border: '1px solid rgba(37, 99, 235, 0.3)',
                 fontWeight: 600,
+                textTransform: 'capitalize',
               }}
             >
-              ImpactX'26 Demo
+              {user?.role?.toLowerCase() || 'applicant'}
             </div>
           </div>
         </header>

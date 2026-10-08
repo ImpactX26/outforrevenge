@@ -72,10 +72,26 @@ export class GroqAiProvider implements IAiProvider {
   async chat(options: AiChatOptions): Promise<string> {
     if (this.apiKey) {
       try {
+        const systemPrompt =
+          options.systemPrompt ||
+          'You are Nexora, an elite AI Relocation & Qualification Advisor for individuals moving, studying, or pursuing vocational training (Ausbildung) and employment in Germany, in partnership with Educaro Deutschland GmbH. Provide clear, professional, empathetic, and actionable guidance on German visa types, Anabin recognition, APS India, language requirements, and career preparation. Never give fake promises; provide structured and realistic guidance.';
+
+        const formattedMessages: Array<{ role: string; content: string }> = [
+          { role: 'system', content: systemPrompt },
+        ];
+
+        for (const m of options.messages) {
+          if (m.role === 'system') continue;
+          formattedMessages.push({
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: m.content || '',
+          });
+        }
+
         return await this.callGroqApi(
-          options.messages.map((m) => ({ role: m.role, content: m.content })),
+          formattedMessages,
           false,
-          options.temperature ?? 0.5,
+          options.temperature ?? 0.6,
         );
       } catch (err: any) {
         this.logger.warn(`Live Groq chat call failed: ${err.message}. Falling back to default assistant response.`);
@@ -116,11 +132,6 @@ export class GroqAiProvider implements IAiProvider {
 
         if (!res.ok) {
           const errorText = await res.text();
-          // If model was not found, continue to next fallback model
-          if (res.status === 404 || errorText.includes('model_not_found') || errorText.includes('does not exist')) {
-            lastError = new Error(`Model ${modelToTry} not found: ${errorText}`);
-            continue;
-          }
           // If response_format json_object is not supported by this model, retry without it
           if (expectJson && (res.status === 400 || errorText.includes('response_format'))) {
             delete body.response_format;
@@ -141,22 +152,22 @@ export class GroqAiProvider implements IAiProvider {
               }
             }
           }
-          throw new Error(`Groq API returned status ${res.status}: ${errorText}`);
+          lastError = new Error(`Model ${modelToTry} returned status ${res.status}: ${errorText}`);
+          continue;
         }
 
         const data: any = await res.json();
         const content = data?.choices?.[0]?.message?.content;
         if (!content) {
-          throw new Error('Groq API returned empty message content');
+          lastError = new Error(`Model ${modelToTry} returned empty message content`);
+          continue;
         }
 
         this.activeModel = modelToTry;
         return content;
       } catch (err: any) {
         lastError = err;
-        if (!err.message?.includes('not found') && !err.message?.includes('does not exist')) {
-          throw err;
-        }
+        continue;
       }
     }
 

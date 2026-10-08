@@ -19,7 +19,7 @@ import {
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.AUTH_SECRET || 'nexora_dev_jwt_secret_key_super_secure_2026_x92',
-      signOptions: { expiresIn: '2h' },
+      signOptions: { expiresIn: '30d' },
     }),
     TypeOrmModule.forFeature([
       User,

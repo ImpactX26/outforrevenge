@@ -19,6 +19,7 @@ export interface AiChatMessage {
 
 export interface AiChatOptions {
   messages: AiChatMessage[];
+  systemPrompt?: string;
   temperature?: number;
 }
 

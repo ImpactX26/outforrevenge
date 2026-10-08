@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { ArrowRight, Lock, Mail, User, Phone, AlertCircle, GraduationCap, Briefcase, Award } from 'lucide-react';
+import { ArrowRight, Lock, Mail, User, Phone, AlertCircle, GraduationCap, Briefcase, Award, KeyRound, CheckCircle2 } from 'lucide-react';
 import { GoalType } from '../types';
 
 export const RegisterPage: React.FC = () => {
-  const { register } = useAuth();
+  const { register, registerWithOtp, sendOtp } = useAuth();
   const navigate = useNavigate();
 
   const [firstName, setFirstName] = useState('');
@@ -17,20 +17,62 @@ export const RegisterPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // OTP Verification state
+  const [requireOtp, setRequireOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [otpSuccessInfo, setOtpSuccessInfo] = useState<string | null>(null);
+
+  const handleSendOtp = async () => {
+    if (!email.trim()) {
+      setError('Please enter your email address to receive a verification code');
+      return;
+    }
+    setError(null);
+    setSendingOtp(true);
+    try {
+      const res = await sendOtp(email, 'REGISTER');
+      setOtpSent(true);
+      const devHint = res.code ? ` (Code: ${res.code})` : '';
+      setOtpSuccessInfo(`Verification code sent to ${email}${devHint}`);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to send verification code');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      await register({
-        firstName,
-        lastName,
-        email,
-        phone,
-        password,
-        currentGoal,
-      });
+      if (requireOtp || otpCode.trim().length > 0) {
+        if (!otpCode || otpCode.trim().length < 6) {
+          setError('Please enter the 6-digit email verification code');
+          setLoading(false);
+          return;
+        }
+        await registerWithOtp({
+          email,
+          code: otpCode.trim(),
+          password,
+          firstName,
+          lastName,
+          phone,
+        });
+      } else {
+        await register({
+          firstName,
+          lastName,
+          email,
+          phone,
+          password,
+          currentGoal,
+        });
+      }
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please check inputs.');
@@ -101,6 +143,26 @@ export const RegisterPage: React.FC = () => {
           >
             <AlertCircle size={16} />
             <span>{error}</span>
+          </div>
+        )}
+
+        {otpSuccessInfo && (
+          <div
+            style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#34d399',
+              padding: '0.75rem',
+              borderRadius: '8px',
+              fontSize: '0.85rem',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <CheckCircle2 size={16} />
+            <span>{otpSuccessInfo}</span>
           </div>
         )}
 
@@ -209,18 +271,75 @@ export const RegisterPage: React.FC = () => {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.35rem' }}>
-              Email Address
-            </label>
-            <input
-              type="email"
-              required
-              className="input-dark"
-              placeholder="aarav.sharma@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+              <label style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                Email Address
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !requireOtp;
+                  setRequireOtp(next);
+                  if (next && !otpSent && email) {
+                    handleSendOtp();
+                  }
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: requireOtp ? '#38bdf8' : '#94a3b8',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: 0,
+                }}
+              >
+                {requireOtp ? '✓ Verifying with OTP' : '+ Verify with Email OTP'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="email"
+                required
+                className="input-dark"
+                placeholder="aarav.sharma@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              {requireOtp && (
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={sendingOtp || !email}
+                  className="btn-secondary"
+                  style={{ fontSize: '0.78rem', padding: '0 0.75rem', whiteSpace: 'nowrap' }}
+                >
+                  {sendingOtp ? 'Sending...' : otpSent ? 'Resend' : 'Send Code'}
+                </button>
+              )}
+            </div>
           </div>
+
+          {requireOtp && (
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                6-Digit Email Verification Code
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  maxLength={6}
+                  className="input-dark"
+                  placeholder="123456"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  style={{ paddingLeft: '2.4rem', letterSpacing: '0.15em', fontWeight: 700 }}
+                />
+                <KeyRound size={16} color="#64748b" style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)' }} />
+              </div>
+            </div>
+          )}
 
           <div>
             <label style={{ display: 'block', fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.35rem' }}>

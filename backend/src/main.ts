@@ -13,8 +13,14 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 process.on('uncaughtException', (err: any) => {
-  if (err?.code === 'ECONNRESET' || err?.message?.includes('ECONNRESET')) {
-    // Neon cloud connection pooler drops idle sockets; pg pool auto-reconnects
+  const msg = err?.message || '';
+  if (
+    err?.code === 'ECONNRESET' ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('Connection terminated unexpectedly') ||
+    msg.includes('socket hang up')
+  ) {
+    // Neon cloud connection pooler drops idle sockets; pg connection pool auto-reconnects on next query
     return;
   }
   console.error('Uncaught Exception:', err);
@@ -106,7 +112,7 @@ async function bootstrap() {
   // Swagger OpenAPI documentation
   const config = new DocumentBuilder()
     .setTitle('Nexora')
-    .setDescription('Nexora API Documentation — Your intelligent journey to Germany (ImpactX\'26 / Educaro Deutschland GmbH)')
+    .setDescription('Nexora API Documentation — Your intelligent journey to Germany (Educaro Deutschland GmbH)')
     .setVersion('1.0.0')
     .addBearerAuth()
     .addTag('Auth')

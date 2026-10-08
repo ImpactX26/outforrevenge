@@ -9,7 +9,10 @@ interface AuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<any>;
+  loginWithOtp: (email: string, code: string) => Promise<any>;
+  sendOtp: (email: string, purpose?: 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD') => Promise<any>;
   register: (data: any) => Promise<any>;
+  registerWithOtp: (data: any) => Promise<any>;
   logout: () => Promise<void>;
   isApplicant: boolean;
   isConsultant: boolean;
@@ -61,8 +64,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return res.data;
   };
 
+  const sendOtp = async (email: string, purpose = 'LOGIN') => {
+    const res = await apiClient.post('/auth/otp/send', { email, purpose });
+    return res.data;
+  };
+
+  const loginWithOtp = async (email: string, code: string) => {
+    const res = await apiClient.post('/auth/otp/login', { email, code });
+    if (res.data.success) {
+      localStorage.setItem('nexora_token', res.data.accessToken);
+      localStorage.setItem('nexora_refresh_token', res.data.refreshToken);
+      localStorage.setItem('nexora_user', JSON.stringify(res.data.user));
+      setUser(res.data.user);
+      setToken(res.data.accessToken);
+    }
+    return res.data;
+  };
+
   const register = async (data: any) => {
     const res = await apiClient.post('/auth/register', data);
+    if (res.data.success) {
+      localStorage.setItem('nexora_token', res.data.accessToken);
+      localStorage.setItem('nexora_refresh_token', res.data.refreshToken);
+      localStorage.setItem('nexora_user', JSON.stringify(res.data.user));
+      setUser(res.data.user);
+      setToken(res.data.accessToken);
+    }
+    return res.data;
+  };
+
+  const registerWithOtp = async (data: any) => {
+    const res = await apiClient.post('/auth/otp/register', data);
     if (res.data.success) {
       localStorage.setItem('nexora_token', res.data.accessToken);
       localStorage.setItem('nexora_refresh_token', res.data.refreshToken);
@@ -101,7 +133,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading: isLoading,
         isAuthenticated: !!user,
         login,
+        loginWithOtp,
+        sendOtp,
         register,
+        registerWithOtp,
         logout,
         isApplicant,
         isConsultant,

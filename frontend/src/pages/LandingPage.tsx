@@ -258,7 +258,7 @@ export const LandingPage: React.FC = () => {
       {/* Footer */}
       <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '2rem', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
         <div>Nexora — Your intelligent journey to Germany.</div>
-        <div style={{ marginTop: '0.25rem', fontSize: '0.75rem' }}>Built for ImpactX'26 Agentic AI Track • Educaro Deutschland GmbH</div>
+        <div style={{ marginTop: '0.25rem', fontSize: '0.75rem' }}>© 2026 Nexora. In collaboration with Educaro Deutschland GmbH.</div>
       </footer>
     </div>
   );

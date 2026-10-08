@@ -65,6 +65,55 @@ export class AuthController {
     return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
+  // --- OTP Verification Endpoints ---
+
+  @Post('otp/send')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send 6-digit OTP to user email for verification' })
+  async sendOtp(
+    @Body('email') email: string,
+    @Body('purpose') purpose?: 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD',
+  ) {
+    return this.authService.sendOtp(email, purpose || 'LOGIN');
+  }
+
+  @Post('otp/login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login with email and 6-digit OTP' })
+  async verifyOtpLogin(
+    @Body('email') email: string,
+    @Body('code') code: string,
+  ) {
+    return this.authService.verifyOtpLogin(email, code);
+  }
+
+  @Post('otp/register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register and verify email with 6-digit OTP' })
+  async verifyOtpRegister(
+    @Body() dto: {
+      email: string;
+      code: string;
+      password?: string;
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+    },
+  ) {
+    return this.authService.verifyOtpRegister(dto);
+  }
+
+  @Post('otp/reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password using 6-digit OTP' })
+  async verifyOtpForgotPassword(
+    @Body('email') email: string,
+    @Body('code') code: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.authService.verifyOtpForgotPassword(email, code, newPassword);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

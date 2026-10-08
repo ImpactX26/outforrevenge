@@ -355,7 +355,7 @@ export const AssistantPage: React.FC = () => {
                 </div>
                 <div style={{ color: '#94a3b8' }}>
                   {new Date(act.startedAt).toLocaleTimeString()}
-                  {act.confidence && ` &bull; ${Math.round(act.confidence * 100)}% conf`}
+                  {act.confidence && ` • ${Math.round(act.confidence * 100)}% conf`}
                 </div>
               </div>
             ))}

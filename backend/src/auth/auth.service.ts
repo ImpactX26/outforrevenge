@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -21,6 +22,7 @@ import { UserRole, GoalType, JourneyStepStatus } from '../common/enums';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -273,22 +275,186 @@ export class AuthService {
     }
   }
 
+  // --- OTP Verification Flows ---
+
+  private readonly otpStore = new Map<string, { code: string; expiresAt: Date; purpose: string }>();
+
+  async sendOtp(email: string, purpose = 'LOGIN') {
+    const cleanEmail = email.toLowerCase().trim();
+    // Generate secure 6-digit OTP code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    this.otpStore.set(`${cleanEmail}_${purpose}`, { code, expiresAt, purpose });
+    this.logger.log(`[Nexora Auth] Generated ${purpose} OTP for ${cleanEmail}: ${code}`);
+
+    return {
+      success: true,
+      message: `Verification code sent to ${cleanEmail}`,
+      email: cleanEmail,
+      // Provide OTP in dev for frictionless testing
+      code: process.env.NODE_ENV !== 'production' ? code : undefined,
+    };
+  }
+
+  async verifyOtpLogin(email: string, code: string) {
+    const cleanEmail = email.toLowerCase().trim();
+    const stored = this.otpStore.get(`${cleanEmail}_LOGIN`);
+
+    if (!stored || stored.code !== code.trim() || new Date() > stored.expiresAt) {
+      throw new BadRequestException('Invalid or expired verification code');
+    }
+
+    this.otpStore.delete(`${cleanEmail}_LOGIN`);
+
+    let user = await this.userRepository.findOne({ where: { email: cleanEmail } });
+    if (!user) {
+      // Auto-register verified email as APPLICANT
+      const randomPassword = await bcrypt.hash(Math.random().toString(36), 10);
+      user = this.userRepository.create({
+        email: cleanEmail,
+        firstName: cleanEmail.split('@')[0],
+        lastName: 'User',
+        passwordHash: randomPassword,
+        role: UserRole.APPLICANT,
+        isActive: true,
+      });
+      user = await this.userRepository.save(user);
+
+      // Create applicant profile
+      const profile = this.profileRepository.create({
+        userId: user.id,
+        currentGoal: GoalType.AUSBILDUNG,
+        profileCompleteness: 20,
+        readinessScore: 15,
+      });
+      await this.profileRepository.save(profile);
+    }
+
+    const tokens = await this.generateTokens(user);
+
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+      },
+      ...tokens,
+    };
+  }
+
+  async verifyOtpRegister(dto: {
+    email: string;
+    code: string;
+    password?: string;
+    firstName?: string;
+    lastName?: string;
+    role?: UserRole;
+    phone?: string;
+  }) {
+    const cleanEmail = dto.email.toLowerCase().trim();
+    const stored = this.otpStore.get(`${cleanEmail}_REGISTER`);
+
+    if (!stored || stored.code !== dto.code.trim() || new Date() > stored.expiresAt) {
+      throw new BadRequestException('Invalid or expired verification code');
+    }
+
+    this.otpStore.delete(`${cleanEmail}_REGISTER`);
+
+    const existing = await this.userRepository.findOne({ where: { email: cleanEmail } });
+    if (existing) {
+      throw new ConflictException('An account with this email address already exists');
+    }
+
+    const passwordToHash = dto.password || 'NexoraPass2026!';
+    const hashedPassword = await bcrypt.hash(passwordToHash, 10);
+    const role = dto.role || UserRole.APPLICANT;
+
+    const user = this.userRepository.create({
+      email: cleanEmail,
+      passwordHash: hashedPassword,
+      firstName: dto.firstName || cleanEmail.split('@')[0],
+      lastName: dto.lastName || '',
+      role,
+      phone: dto.phone,
+      isActive: true,
+    });
+    const savedUser = await this.userRepository.save(user);
+
+    if (role === UserRole.APPLICANT) {
+      const profile = this.profileRepository.create({
+        userId: savedUser.id,
+        currentGoal: GoalType.AUSBILDUNG,
+        phone: dto.phone,
+        profileCompleteness: 20,
+        readinessScore: 15,
+      });
+      await this.profileRepository.save(profile);
+    }
+
+    const tokens = await this.generateTokens(savedUser);
+
+    return {
+      success: true,
+      user: {
+        id: savedUser.id,
+        email: savedUser.email,
+        firstName: savedUser.firstName,
+        lastName: savedUser.lastName,
+        role: savedUser.role,
+      },
+      ...tokens,
+    };
+  }
+
+  async verifyOtpForgotPassword(email: string, code: string, newPassword: string) {
+    const cleanEmail = email.toLowerCase().trim();
+    const stored = this.otpStore.get(`${cleanEmail}_FORGOT_PASSWORD`);
+
+    if (!stored || stored.code !== code.trim() || new Date() > stored.expiresAt) {
+      throw new BadRequestException('Invalid or expired verification code');
+    }
+
+    this.otpStore.delete(`${cleanEmail}_FORGOT_PASSWORD`);
+
+    const user = await this.userRepository.findOne({ where: { email: cleanEmail } });
+    if (!user) {
+      throw new NotFoundException('No account found with this email address');
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.userRepository.save(user);
+
+    // Revoke all existing sessions
+    await this.refreshTokenRepository.update({ userId: user.id }, { isRevoked: true });
+
+    return {
+      success: true,
+      message: 'Password reset successful. Please sign in with your new password.',
+    };
+  }
+
   private async generateTokens(user: User) {
     const payload = { sub: user.id, email: user.email, role: user.role };
 
+    // 30 days session for seamless persistent login
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: '2h',
+      expiresIn: '30d',
       secret: process.env.AUTH_SECRET || 'nexora_dev_jwt_secret_key_super_secure_2026_x92',
     });
 
+    // 90 days refresh token
     const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
+      expiresIn: '90d',
       secret: process.env.AUTH_REFRESH_SECRET || 'nexora_dev_refresh_jwt_secret_key_super_secure_2026_y83',
     });
 
     const tokenHash = await bcrypt.hash(refreshToken, 10);
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + 90);
 
     await this.refreshTokenRepository.save(
       this.refreshTokenRepository.create({
@@ -301,7 +467,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: 7200,
+      expiresIn: 30 * 24 * 3600, // 30 days in seconds
     };
   }
 }

@@ -102,7 +102,7 @@ export class PdfGeneratorService {
 
       // Footer
       doc.fontSize(8).fillColor('#94a3b8').text(
-        `Generated via Nexora (ImpactX'26 / Educaro Deutschland) on ${new Date().toLocaleDateString('de-DE')}`,
+        `Generated via Nexora (Educaro Deutschland) on ${new Date().toLocaleDateString('de-DE')}`,
         45,
         780,
         { align: 'center', width: 505 },

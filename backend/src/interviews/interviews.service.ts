@@ -22,6 +22,18 @@ export class InterviewsService {
     targetRole?: string,
     opportunityId?: string,
   ): Promise<any> {
+    // Statutory Gate: Candidate must be QUALIFIED before official interview sessions
+    const assessment = await this.prisma.qualificationAssessment.findFirst({
+      where: { applicantId },
+      orderBy: { evaluatedAt: 'desc' },
+    });
+
+    if (!assessment || assessment.status !== 'QUALIFIED') {
+      throw new ForbiddenException(
+        `Interview locked: Official video interviews require verified QUALIFIED status. Your current status is ${assessment?.status || 'NOT EVALUATED'}. Please complete statutory qualification assessment first.`,
+      );
+    }
+
     let roleName = targetRole || (pathway === GoalType.AUSBILDUNG
       ? 'Fachinformatiker für Anwendungsentwicklung'
       : pathway === GoalType.STUDY

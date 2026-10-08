@@ -492,7 +492,142 @@ export const QualificationPage: React.FC = () => {
             )}
           </div>
 
-          {/* 6. Educaro Action Bridge Banner */}
+          {/* 6. Statutory Pathway Privileges: German University Option & Video Interview */}
+          <div
+            className="card"
+            style={{
+              padding: '1.6rem 1.85rem',
+              background: assessment.status === 'QUALIFIED'
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(30, 41, 59, 0.9) 100%)'
+                : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.9) 100%)',
+              border: assessment.status === 'QUALIFIED'
+                ? '1px solid rgba(16, 185, 129, 0.35)'
+                : '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem',
+              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                  <GraduationCap size={20} color={assessment.status === 'QUALIFIED' ? '#34d399' : '#fbbf24'} />
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+                    German University Option & Live Interview Privileges
+                  </h3>
+                </div>
+                <p style={{ color: '#cbd5e1', fontSize: '0.85rem', margin: 0, maxWidth: '780px', lineHeight: 1.55 }}>
+                  {assessment.status === 'QUALIFIED'
+                    ? 'Under German KMK higher education regulations and the Skilled Immigration Act (FEG), your verified credentials grant direct German University Study eligibility (Hochschulzugang für beruflich Qualifizierte) and live video interview clearance.'
+                    : 'German University Study options and live recruiter video interviews are unlocked strictly upon achieving verified QUALIFIED status. Satisfy remaining language and transcript requirements to unlock.'}
+                </p>
+              </div>
+
+              <span
+                style={{
+                  padding: '0.3rem 0.8rem',
+                  borderRadius: '20px',
+                  fontSize: '0.74rem',
+                  fontWeight: 800,
+                  background: assessment.status === 'QUALIFIED' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                  color: assessment.status === 'QUALIFIED' ? '#34d399' : '#fbbf24',
+                  border: assessment.status === 'QUALIFIED' ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {assessment.status === 'QUALIFIED' ? 'PRIVILEGES UNLOCKED' : 'QUALIFICATION REQUIRED'}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '1rem' }}>
+              {/* University Option Box */}
+              <div
+                style={{
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  padding: '1.1rem',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '0.85rem',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <GraduationCap size={16} color="#60a5fa" />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>German University Option</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                    {assessment.status === 'QUALIFIED'
+                      ? 'Apply to top public tuition-free German universities (TUM, RWTH Aachen) with verified Anabin comparability & APS compliance.'
+                      : 'University applications require direct Anabin H+ comparability and language prerequisites.'}
+                  </p>
+                </div>
+                <div>
+                  {assessment.status === 'QUALIFIED' ? (
+                    <button
+                      onClick={() => navigate('/opportunities?filter=STUDY')}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.8rem', padding: '0.45rem 1rem', width: '100%', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.4)' }}
+                    >
+                      <span>Explore University Study Programs</span>
+                      <ArrowRight size={14} />
+                    </button>
+                  ) : (
+                    <div style={{ fontSize: '0.74rem', color: '#64748b', fontStyle: 'italic' }}>
+                      Locked until QUALIFIED status is achieved
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Video Interview Box */}
+              <div
+                style={{
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  padding: '1.1rem',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '0.85rem',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <Video size={16} color={assessment.status === 'QUALIFIED' ? '#34d399' : '#64748b'} />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>Live Video Interview Studio</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                    {assessment.status === 'QUALIFIED'
+                      ? 'Simulate authentic German consular & corporate interviews with Dr. Elena Weber and receive instant AI grading.'
+                      : 'Interview studio access is restricted to applicants who have passed statutory qualification assessment.'}
+                  </p>
+                </div>
+                <div>
+                  {assessment.status === 'QUALIFIED' ? (
+                    <button
+                      onClick={() => navigate('/interview')}
+                      className="btn btn-primary"
+                      style={{ fontSize: '0.8rem', padding: '0.45rem 1rem', width: '100%', boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.39)' }}
+                    >
+                      <Video size={14} />
+                      <span>Start Live Video Interview</span>
+                    </button>
+                  ) : (
+                    <div style={{ fontSize: '0.74rem', color: '#64748b', fontStyle: 'italic' }}>
+                      Locked until QUALIFIED status is achieved
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 7. Educaro Action Bridge Banner */}
           <div
             className="card"
             style={{
@@ -515,14 +650,6 @@ export const QualificationPage: React.FC = () => {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <button
-                onClick={() => navigate('/interview')}
-                className="btn btn-secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.25rem' }}
-              >
-                <Video size={16} color="#60a5fa" />
-                <span>Start Video Interview</span>
-              </button>
               <button
                 onClick={() => navigate('/next-step')}
                 className="btn btn-primary"

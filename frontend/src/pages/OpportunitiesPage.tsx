@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import {
   Briefcase,
@@ -18,10 +18,12 @@ import {
   ChevronRight,
   Check,
   Video,
+  Lock,
 } from 'lucide-react';
 import { OpportunityItem, OpportunityMatch, OpportunityType } from '../types';
 
 export const OpportunitiesPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [matches, setMatches] = useState<OpportunityMatch[]>([]);
   const [allOpportunities, setAllOpportunities] = useState<OpportunityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,13 +31,22 @@ export const OpportunitiesPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMatch, setSelectedMatch] = useState<OpportunityMatch | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [isQualified, setIsQualified] = useState(false);
+
+  useEffect(() => {
+    const f = searchParams.get('filter');
+    if (f === 'STUDY' || f === 'AUSBILDUNG' || f === 'EMPLOYMENT') {
+      setActiveFilter(f as OpportunityType);
+    }
+  }, [searchParams]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [matchesRes, allRes] = await Promise.allSettled([
+      const [matchesRes, allRes, qualRes] = await Promise.allSettled([
         apiClient.get('/opportunities/matches'),
         apiClient.get('/opportunities'),
+        apiClient.get('/qualification/status'),
       ]);
 
       if (matchesRes.status === 'fulfilled' && matchesRes.value.data.success) {
@@ -43,6 +54,9 @@ export const OpportunitiesPage: React.FC = () => {
       }
       if (allRes.status === 'fulfilled' && allRes.value.data.success) {
         setAllOpportunities(allRes.value.data.opportunities || []);
+      }
+      if (qualRes.status === 'fulfilled' && qualRes.value.data.success) {
+        setIsQualified(qualRes.value.data.assessment?.status === 'QUALIFIED');
       }
     } catch (err) {
       console.error('Failed to load opportunities:', err);
@@ -141,6 +155,96 @@ export const OpportunitiesPage: React.FC = () => {
         </button>
       </div>
 
+      {/* Statutory Qualification Status & Privileges Notification Banner */}
+      {isQualified ? (
+        <div
+          style={{
+            padding: '1.1rem 1.35rem',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(30, 41, 59, 0.85))',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: 'rgba(16, 185, 129, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#34d399',
+              }}
+            >
+              <GraduationCap size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span>German University Option & Live Video Interview Studio Unlocked</span>
+                <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.25)', color: '#34d399' }}>
+                  QUALIFIED STATUS
+                </span>
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.15rem' }}>
+                Your dossier satisfies German statutory criteria. You are cleared for German university applications and real-time consular/employer video interviews.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => setActiveFilter('STUDY')}
+              className="btn btn-secondary"
+              style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', color: '#34d399', borderColor: 'rgba(16, 185, 129, 0.4)' }}
+            >
+              View University Programs
+            </button>
+            <Link
+              to="/interview"
+              className="btn btn-primary"
+              style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <Video size={13} />
+              <span>Video Interview</span>
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            padding: '0.95rem 1.25rem',
+            borderRadius: '10px',
+            background: 'rgba(245, 158, 11, 0.1)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <Award size={18} color="#fbbf24" />
+            <div style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+              <strong>Statutory Requirement:</strong> German University admissions and Live Video Interviews unlock <strong style={{ color: '#fbbf24' }}>strictly upon achieving QUALIFIED status</strong>.
+            </div>
+          </div>
+          <Link
+            to="/qualification"
+            className="btn btn-secondary"
+            style={{ fontSize: '0.76rem', padding: '0.35rem 0.85rem', textDecoration: 'none', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.35)' }}
+          >
+            Run Qualification Check &rarr;
+          </Link>
+        </div>
+      )}
+
       {/* 2. Filter & Search Control Bar */}
       <div
         className="card"
@@ -160,7 +264,12 @@ export const OpportunitiesPage: React.FC = () => {
           {(['ALL', 'STUDY', 'AUSBILDUNG', 'EMPLOYMENT'] as const).map((t) => (
             <button
               key={t}
-              onClick={() => setActiveFilter(t)}
+              onClick={() => {
+                if (t === 'STUDY' && !isQualified) {
+                  alert('German University Study Option is unlocked strictly for candidates who achieve QUALIFIED status. Please complete your qualification evaluation on the Qualification page.');
+                }
+                setActiveFilter(t);
+              }}
               style={{
                 padding: '0.45rem 1rem',
                 borderRadius: '8px',
@@ -172,15 +281,35 @@ export const OpportunitiesPage: React.FC = () => {
                 fontSize: '0.82rem',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
               }}
             >
-              {t === 'ALL'
-                ? 'All Pathways'
-                : t === 'STUDY'
-                ? 'University Study'
-                : t === 'AUSBILDUNG'
-                ? 'Dual Ausbildung'
-                : 'Direct Employment'}
+              <span>
+                {t === 'ALL'
+                  ? 'All Pathways'
+                  : t === 'STUDY'
+                  ? 'University Study'
+                  : t === 'AUSBILDUNG'
+                  ? 'Dual Ausbildung'
+                  : 'Direct Employment'}
+              </span>
+              {t === 'STUDY' && (
+                <span
+                  style={{
+                    fontSize: '0.65rem',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '10px',
+                    background: isQualified ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)',
+                    color: isQualified ? '#34d399' : '#fbbf24',
+                    border: isQualified ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                    fontWeight: 700,
+                  }}
+                >
+                  {isQualified ? 'Unlocked' : 'Qualified Only'}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -304,18 +433,56 @@ export const OpportunitiesPage: React.FC = () => {
                       fontWeight: 600,
                     }}
                   >
-                    {opp.type === 'STUDY' ? 'Public University' : opp.type === 'AUSBILDUNG' ? 'Paid Dual Training' : 'Skilled Job'}
+                    {opp.type === 'STUDY' ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span>Public University</span>
+                        <span
+                          style={{
+                            fontSize: '0.62rem',
+                            padding: '0.05rem 0.35rem',
+                            borderRadius: '4px',
+                            background: isQualified ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)',
+                            color: isQualified ? '#34d399' : '#fbbf24',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {isQualified ? 'Unlocked' : 'Qualified Only'}
+                        </span>
+                      </span>
+                    ) : opp.type === 'AUSBILDUNG' ? 'Paid Dual Training' : 'Skilled Job'}
                   </span>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <Link
-                      to="/interview"
-                      className="btn btn-primary"
-                      style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none' }}
-                    >
-                      <Video size={13} />
-                      <span>Video Interview</span>
-                    </Link>
+                    {isQualified ? (
+                      <Link
+                        to="/interview"
+                        className="btn btn-primary"
+                        style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none' }}
+                      >
+                        <Video size={13} />
+                        <span>Video Interview</span>
+                      </Link>
+                    ) : (
+                      <Link
+                        to="/qualification"
+                        className="btn"
+                        style={{
+                          fontSize: '0.74rem',
+                          padding: '0.4rem 0.75rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          textDecoration: 'none',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          color: '#94a3b8',
+                        }}
+                        title="Complete statutory qualification assessment to unlock video interviews"
+                      >
+                        <Video size={13} color="#64748b" />
+                        <span>Interview Locked</span>
+                      </Link>
+                    )}
                     <button
                       onClick={() => alert(`Connecting with Educaro advisor for application to: ${opp.title} (${opp.organization})`)}
                       className="btn btn-secondary"

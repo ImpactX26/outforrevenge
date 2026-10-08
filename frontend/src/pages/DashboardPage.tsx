@@ -23,6 +23,7 @@ import {
   FileCheck2,
   Check,
   ChevronRight,
+  Video,
 } from 'lucide-react';
 import {
   ApplicantProfile,
@@ -832,6 +833,64 @@ export const DashboardPage: React.FC = () => {
               <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>Matched German Opportunities</div>
               <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
                 Explore live German university degrees, paid Ausbildung vocational contracts, and skilled employment listings.
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to={assessment?.status === 'QUALIFIED' ? '/interview' : '/qualification'}
+            className="card"
+            style={{
+              textDecoration: 'none',
+              padding: '1.35rem',
+              background: assessment?.status === 'QUALIFIED'
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(15, 23, 42, 0.85))'
+                : 'rgba(15, 23, 42, 0.75)',
+              border: assessment?.status === 'QUALIFIED'
+                ? '1px solid rgba(16, 185, 129, 0.35)'
+                : '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: assessment?.status === 'QUALIFIED' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: assessment?.status === 'QUALIFIED' ? '#34d399' : '#fbbf24',
+                flexShrink: 0,
+              }}
+            >
+              {assessment?.status === 'QUALIFIED' ? <Video size={20} /> : <Lock size={20} />}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.25rem' }}>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>Live Video Interview Studio</span>
+                <span
+                  style={{
+                    fontSize: '0.62rem',
+                    padding: '0.1rem 0.4rem',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    background: assessment?.status === 'QUALIFIED' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                    color: assessment?.status === 'QUALIFIED' ? '#34d399' : '#fbbf24',
+                    border: assessment?.status === 'QUALIFIED' ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)',
+                  }}
+                >
+                  {assessment?.status === 'QUALIFIED' ? 'UNLOCKED' : 'QUALIFICATION REQUIRED'}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
+                {assessment?.status === 'QUALIFIED'
+                  ? 'Rehearse real-time German questions with Dr. Elena Weber, with live speech dictation, scoring, and clearance dossier.'
+                  : 'Unlocked strictly when your candidate profile achieves QUALIFIED status under German statutory regulations.'}
               </div>
             </div>
           </Link>

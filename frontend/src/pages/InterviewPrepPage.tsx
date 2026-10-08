@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import apiClient from '../api/client';
 import {
   Video,
@@ -28,6 +29,8 @@ import {
   UserCheck,
   ChevronRight,
   Download,
+  Lock,
+  AlertCircle,
 } from 'lucide-react';
 import { GoalType, OpportunityItem } from '../types';
 
@@ -266,6 +269,10 @@ export const InterviewPrepPage: React.FC = () => {
 
   // 5. Start Session
   const handleStartSession = async () => {
+    if (qualificationStatus !== 'QUALIFIED') {
+      alert('The Live Video Interview Room is strictly locked until you achieve statutory QUALIFIED status. Please complete your qualification evaluation first.');
+      return;
+    }
     try {
       setStarting(true);
       const res = await apiClient.post('/interview/start', {
@@ -453,23 +460,44 @@ export const InterviewPrepPage: React.FC = () => {
             </select>
           </div>
 
-          <button
-            onClick={handleStartSession}
-            disabled={starting}
-            className="btn btn-primary"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              fontSize: '0.85rem',
-              padding: '0.7rem 1.35rem',
-              alignSelf: 'flex-end',
-              boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.39)',
-            }}
-          >
-            {starting ? <RefreshCw className="animate-spin" size={16} /> : <Video size={16} />}
-            <span>Launch Video Conference</span>
-          </button>
+          {qualificationStatus === 'QUALIFIED' ? (
+            <button
+              onClick={handleStartSession}
+              disabled={starting}
+              className="btn btn-primary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                fontSize: '0.85rem',
+                padding: '0.7rem 1.35rem',
+                alignSelf: 'flex-end',
+                boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.39)',
+              }}
+            >
+              {starting ? <RefreshCw className="animate-spin" size={16} /> : <Video size={16} />}
+              <span>Launch Video Conference</span>
+            </button>
+          ) : (
+            <Link
+              to="/qualification"
+              className="btn btn-secondary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                fontSize: '0.82rem',
+                padding: '0.7rem 1.15rem',
+                alignSelf: 'flex-end',
+                textDecoration: 'none',
+                color: '#fbbf24',
+                borderColor: 'rgba(245, 158, 11, 0.35)',
+              }}
+            >
+              <Award size={15} />
+              <span>Get Qualified First</span>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -1093,48 +1121,180 @@ export const InterviewPrepPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Setup / Welcome Card */
-        <div
-          className="card"
-          style={{
-            textAlign: 'center',
-            padding: '3.5rem 2rem',
-            border: '1px dashed rgba(255, 255, 255, 0.15)',
-            background: 'rgba(15, 23, 42, 0.6)',
-          }}
-        >
+        /* Setup / Welcome Card with Qualification Gate */
+        qualificationStatus !== 'QUALIFIED' ? (
           <div
+            className="card"
             style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '16px',
-              background: 'rgba(37, 99, 235, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#60a5fa',
-              margin: '0 auto 1.25rem',
+              textAlign: 'center',
+              padding: '3.5rem 2rem',
+              border: '1px dashed rgba(245, 158, 11, 0.4)',
+              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))',
+              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.3)',
             }}
           >
-            <Video size={30} />
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '16px',
+                background: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fbbf24',
+                margin: '0 auto 1.25rem',
+              }}
+            >
+              <Lock size={30} />
+            </div>
+
+            <div
+              style={{
+                display: 'inline-block',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '20px',
+                background: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                color: '#fbbf24',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                marginBottom: '0.85rem',
+              }}
+            >
+              INTERVIEW ACCESS LOCKED &bull; PREREQUISITE REQUIRED
+            </div>
+
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff', margin: '0 0 0.5rem' }}>
+              Statutory Qualification Required Before Video Interview
+            </h2>
+            <p style={{ color: '#cbd5e1', fontSize: '0.88rem', maxWidth: '580px', margin: '0 auto 1.25rem', lineHeight: '1.6' }}>
+              The Live Online Video Interview Studio with German examiners and corporate recruiters is unlocked <strong style={{ color: '#fff' }}>strictly when your dossier achieves verified QUALIFIED status</strong>.
+            </p>
+
+            <div
+              style={{
+                maxWidth: '460px',
+                margin: '0 auto 1.75rem',
+                padding: '0.85rem 1.15rem',
+                borderRadius: '10px',
+                background: 'rgba(15, 23, 42, 0.75)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '0.82rem',
+              }}
+            >
+              <span style={{ color: '#94a3b8' }}>Your Current Evaluation Status:</span>
+              <span
+                style={{
+                  fontWeight: 700,
+                  color: qualificationStatus === 'PARTIALLY_QUALIFIED' ? '#fbbf24' : '#f87171',
+                }}
+              >
+                {qualificationStatus.replace(/_/g, ' ')}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <Link
+                to="/qualification"
+                className="btn btn-primary"
+                style={{
+                  padding: '0.75rem 1.85rem',
+                  fontSize: '0.9rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.39)',
+                }}
+              >
+                <Award size={16} />
+                <span>Run Qualification Assessment to Unlock</span>
+                <ArrowRight size={15} />
+              </Link>
+              <Link
+                to="/opportunities"
+                className="btn btn-secondary"
+                style={{
+                  padding: '0.75rem 1.4rem',
+                  fontSize: '0.9rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  textDecoration: 'none',
+                }}
+              >
+                <Briefcase size={15} />
+                <span>Browse Opportunities</span>
+              </Link>
+            </div>
           </div>
-
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff', margin: '0 0 0.5rem' }}>
-            Ready for Your Official Online Video Interview?
-          </h2>
-          <p style={{ color: '#94a3b8', fontSize: '0.88rem', maxWidth: '560px', margin: '0 auto 1.75rem', lineHeight: '1.6' }}>
-            Based on your credentials and qualification status, you are cleared to enter the live video conference room. Rehearse real-time German questions with Dr. Elena Weber, receive instant rubric scoring, and obtain your official clearance badge.
-          </p>
-
-          <button
-            onClick={handleStartSession}
-            disabled={starting}
-            className="btn btn-primary"
-            style={{ padding: '0.75rem 2rem', fontSize: '0.92rem', boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.39)' }}
+        ) : (
+          <div
+            className="card"
+            style={{
+              textAlign: 'center',
+              padding: '3.5rem 2rem',
+              border: '1px dashed rgba(16, 185, 129, 0.35)',
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(15, 23, 42, 0.8))',
+            }}
           >
-            {starting ? 'Connecting to Conference Room...' : 'Enter Live Video Interview Room'}
-          </button>
-        </div>
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '16px',
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#34d399',
+                margin: '0 auto 1.25rem',
+              }}
+            >
+              <Video size={30} />
+            </div>
+
+            <div
+              style={{
+                display: 'inline-block',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '20px',
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                color: '#34d399',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                marginBottom: '0.85rem',
+              }}
+            >
+              CANDIDATE QUALIFIED &bull; VIDEO INTERVIEW ROOM UNLOCKED
+            </div>
+
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff', margin: '0 0 0.5rem' }}>
+              Ready for Your Official Online Video Interview?
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: '0.88rem', maxWidth: '560px', margin: '0 auto 1.75rem', lineHeight: '1.6' }}>
+              Congratulations! Your credentials meet German statutory benchmarks. You are officially cleared to enter the video conference room. Rehearse real-time German questions with Dr. Elena Weber, receive instant rubric scoring, and obtain your official clearance badge.
+            </p>
+
+            <button
+              onClick={handleStartSession}
+              disabled={starting}
+              className="btn btn-primary"
+              style={{ padding: '0.75rem 2rem', fontSize: '0.92rem', boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.39)' }}
+            >
+              {starting ? 'Connecting to Conference Room...' : 'Enter Live Video Interview Room'}
+            </button>
+          </div>
+        )
       )}
     </div>
   );

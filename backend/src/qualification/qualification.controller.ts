@@ -36,6 +36,26 @@ export class QualificationController {
     };
   }
 
+  @Get('status')
+  @ApiOperation({ summary: 'Get current qualification assessment status for applicant (alias)' })
+  async getStatus(@CurrentUser('id') applicantId: string) {
+    const assessment = await this.qualificationService.getLatestAssessment(applicantId);
+    return {
+      success: true,
+      assessment,
+    };
+  }
+
+  @Get('latest')
+  @ApiOperation({ summary: 'Get latest qualification assessment for applicant (alias)' })
+  async getLatest(@CurrentUser('id') applicantId: string) {
+    const assessment = await this.qualificationService.getLatestAssessment(applicantId);
+    return {
+      success: true,
+      assessment,
+    };
+  }
+
   @Get('history')
   @ApiOperation({ summary: 'Get evaluation history for applicant' })
   async getHistory(@CurrentUser('id') applicantId: string) {

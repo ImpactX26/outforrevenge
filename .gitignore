@@ -29,14 +29,18 @@ pnpm-debug.log*
 # Database & Storage
 *.sqlite
 *.sqlite3
+storage/
 storage/uploads/
 storage/temp/
+uploads/
 nexora-storage/
 .pgdata/
+backend/.pgdata/
 
 # OS and Editor
 .DS_Store
 Thumbs.db
+*.zip
 .idea/
 .vscode/
 *.suo

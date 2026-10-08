@@ -23,9 +23,42 @@ import {
   RecommendationType,
   JourneyStepStatus,
 } from '../../common/enums';
+import { startDatabaseServer } from '../standalone-pg-server';
+
+import { Client } from 'pg';
 
 export async function runSeed() {
   console.log('--- Starting Nexora Database Seed (DEMO DATA) ---');
+  let dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/nexora';
+  try {
+    const u = new URL(dbUrl);
+    u.searchParams.delete('channel_binding');
+    dbUrl = u.toString();
+  } catch (e) {}
+
+  const isLocalDb = !dbUrl || dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
+  if (isLocalDb) {
+    await startDatabaseServer(5432).catch(() => {});
+  }
+
+  // Ensure uuid functions exist on Postgres (works seamlessly on Neon, local PG, and PGlite)
+  try {
+    const pgClient = new Client({
+      connectionString: dbUrl,
+      ssl: !isLocalDb ? { rejectUnauthorized: false } : false,
+    });
+    await pgClient.connect();
+    await pgClient.query(`
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+      CREATE OR REPLACE FUNCTION uuid_generate_v4() RETURNS uuid AS $$
+        SELECT gen_random_uuid();
+      $$ LANGUAGE sql;
+    `);
+    await pgClient.end();
+  } catch (err: any) {
+    console.warn('Note: UUID extension init:', err?.message || err);
+  }
+
   if (!AppDataSource.isInitialized) {
     await AppDataSource.initialize();
   }

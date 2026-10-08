@@ -26,7 +26,11 @@ import { NotificationsModule } from './notifications/notifications.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: path.resolve(__dirname, '../.env'),
+      envFilePath: [
+        path.resolve(__dirname, '../../.env.local'),
+        path.resolve(__dirname, '../../.env'),
+        path.resolve(__dirname, '../.env'),
+      ],
     }),
     TypeOrmModule.forRoot(dataSourceOptions),
     StorageModule,

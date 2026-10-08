@@ -31,9 +31,23 @@ import {
   AuditLog,
 } from './entities';
 
+dotenv.config({ path: path.resolve(__dirname, '../../../.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/nexora';
+let dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/nexora';
+try {
+  const u = new URL(dbUrl);
+  u.searchParams.delete('channel_binding');
+  dbUrl = u.toString();
+} catch (e) {
+  // ignore
+}
+
+const isRemoteOrSsl =
+  process.env.DATABASE_SSL === 'true' ||
+  dbUrl.includes('neon.tech') ||
+  dbUrl.includes('sslmode=require');
 
 export const dataSourceOptions: DataSourceOptions = {
   type: 'postgres',
@@ -70,7 +84,8 @@ export const dataSourceOptions: DataSourceOptions = {
   migrations: [path.join(__dirname, 'migrations/*{.ts,.js}')],
   synchronize: process.env.NODE_ENV !== 'production', // Synchronize schema in dev or run migrations
   logging: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  ssl: isRemoteOrSsl ? { rejectUnauthorized: false } : false,
+  installExtensions: false,
 };
 
 export const AppDataSource = new DataSource(dataSourceOptions);

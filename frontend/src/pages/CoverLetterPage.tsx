@@ -67,6 +67,55 @@ export const CoverLetterPage: React.FC = () => {
     fetchData();
   }, []);
 
+  const handleLanguageChange = async (lang: 'de' | 'en') => {
+    setSelectedLanguage(lang);
+    setStatusMsg(null);
+
+    // Look for existing letter in target language
+    const match = coverLetters.find((cl) => {
+      const isEn = (cl.title || '').toLowerCase().includes('english') || 
+                   (cl.title || '').toLowerCase().includes('cover letter') || 
+                   (cl.content || '').startsWith('Dear') ||
+                   (cl.content || '').includes('Sincerely');
+      return lang === 'en' ? isEn : !isEn;
+    });
+
+    if (match) {
+      setActiveLetter(match);
+      setLetterContent(match.content || '');
+      setLetterTitle(match.title || '');
+      setStatusMsg(lang === 'en' ? 'Loaded English Cover Letter draft' : 'Deutsches Anschreiben Entwurf geladen');
+    } else {
+      // Auto-generate in requested language
+      try {
+        setGenerating(true);
+        const res = await apiClient.post('/cover-letters/generate', {
+          opportunityId: selectedOpportunityId || undefined,
+          language: lang,
+        });
+        if (res.data.success && res.data.coverLetter) {
+          const newLetter = res.data.coverLetter;
+          setActiveLetter(newLetter);
+          setLetterContent(newLetter.content || '');
+          setLetterTitle(newLetter.title || '');
+          setStatusMsg(
+            lang === 'en'
+              ? 'New English Cover Letter generated adhering to international business standards!'
+              : 'Neues deutsches Anschreiben nach DIN 5008 generiert!',
+          );
+          const lettersRes = await apiClient.get('/cover-letters');
+          if (lettersRes.data?.coverLetters) {
+            setCoverLetters(lettersRes.data.coverLetters);
+          }
+        }
+      } catch (err: any) {
+        setStatusMsg(err.response?.data?.message || 'Failed to generate cover letter in ' + lang);
+      } finally {
+        setGenerating(false);
+      }
+    }
+  };
+
   const handleGenerate = async () => {
     try {
       setGenerating(true);
@@ -179,10 +228,10 @@ export const CoverLetterPage: React.FC = () => {
           </div>
 
           <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em' }}>
-            German Anschreiben Generator
+            Cover Letter & Anschreiben Generator
           </h1>
           <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: '1.5' }}>
-            Tailor high-impact German cover letters aligned with specific universities, hospitals, or vocational training enterprises. Automatically structured with formal German salutations, motivation paragraphs, and career qualifications.
+            Tailor professional, high-impact cover letters in English or German (DIN 5008) aligned with target employers and universities. Switch effortlessly between languages while maintaining strict adherence to German business standards.
           </p>
         </div>
 
@@ -194,7 +243,7 @@ export const CoverLetterPage: React.FC = () => {
             <div style={{ display: 'inline-flex', background: 'rgba(15, 23, 42, 0.85)', padding: '0.2rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
               <button
                 type="button"
-                onClick={() => setSelectedLanguage('de')}
+                onClick={() => handleLanguageChange('de')}
                 style={{
                   padding: '0.45rem 0.8rem',
                   borderRadius: '6px',
@@ -211,7 +260,7 @@ export const CoverLetterPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedLanguage('en')}
+                onClick={() => handleLanguageChange('en')}
                 style={{
                   padding: '0.45rem 0.8rem',
                   borderRadius: '6px',

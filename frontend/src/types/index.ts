@@ -230,6 +230,7 @@ export interface CV {
     email: string;
     phone?: string;
     location?: string;
+    language?: string;
   };
   educationData: any[];
   employmentData: any[];

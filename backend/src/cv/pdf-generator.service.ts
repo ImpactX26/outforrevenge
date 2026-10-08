@@ -19,6 +19,8 @@ export class PdfGeneratorService {
       doc.on('error', (err) => reject(err));
 
       const personalInfo = (cv.personalInfo || {}) as any;
+      const isEnglish = (personalInfo.language || '').toLowerCase().startsWith('en');
+
       const educationData = (Array.isArray(cv.educationData) ? cv.educationData : []) as any[];
       const employmentData = (Array.isArray(cv.employmentData) ? cv.employmentData : []) as any[];
       const skillsData = (Array.isArray(cv.skillsData) ? cv.skillsData : []) as any[];
@@ -26,7 +28,9 @@ export class PdfGeneratorService {
 
       // Header: Name & Contact
       doc.fontSize(22).fillColor('#0f172a').font('Helvetica-Bold').text(personalInfo.fullName || 'Applicant Name');
-      doc.fontSize(10).fillColor('#2563eb').font('Helvetica').text('NEXORA — LEBENSLAUF (GERMAN STANDARD CV)');
+      doc.fontSize(10).fillColor('#2563eb').font('Helvetica').text(
+        isEnglish ? 'NEXORA ? CURRICULUM VITAE (INTERNATIONAL)' : 'NEXORA ? LEBENSLAUF (DIN 5008 STANDARD)'
+      );
       doc.moveDown(0.5);
 
       const contact = [
@@ -42,27 +46,39 @@ export class PdfGeneratorService {
 
       // Section: Career Summary
       if (cv.summary) {
-        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text('BERUFLICHES PROFIL / SUMMARY');
+        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text(
+          isEnglish ? 'PROFESSIONAL PROFILE' : 'BERUFLICHES PROFIL'
+        );
         doc.fontSize(9.5).fillColor('#334155').font('Helvetica').text(cv.summary, { lineGap: 2 });
         if (cv.isSummaryAiGenerated) {
-          doc.fontSize(7.5).fillColor('#64748b').font('Helvetica-Oblique').text('[AI Generated Summary — Verified by Applicant]');
+          doc.fontSize(7.5).fillColor('#64748b').font('Helvetica-Oblique').text(
+            isEnglish ? '[AI-Assisted Summary ? Verified with Dossier Credentials]' : '[KI-Generiertes Profil ? Verifiziert anhand der Dossier-Daten]'
+          );
         }
         doc.moveDown(1);
       }
 
       // Section: Education (Ausbildung / Studium)
       if (educationData.length > 0) {
-        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text('AUSBILDUNG & STUDIUM / EDUCATION');
+        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text(
+          isEnglish ? 'EDUCATION & ACADEMIC BACKGROUND' : 'AUSBILDUNG & STUDIUM'
+        );
         doc.moveDown(0.3);
 
         for (const edu of educationData) {
-          doc.fontSize(10).fillColor('#0f172a').font('Helvetica-Bold').text(`${edu.degree} — ${edu.field}`);
-          doc.fontSize(9).fillColor('#2563eb').font('Helvetica').text(`${edu.institution}  (${edu.period || 'Graduated'})`);
+          doc.fontSize(10).fillColor('#0f172a').font('Helvetica-Bold').text(`${edu.degree} ? ${edu.field}`);
+          doc.fontSize(9).fillColor('#2563eb').font('Helvetica').text(
+            `${edu.institution}  (${edu.period || (isEnglish ? 'Completed' : 'Abschluss')})`
+          );
           if (edu.grade) {
-            doc.fontSize(8.5).fillColor('#475569').text(`Grade / CGPA: ${edu.grade}`);
+            doc.fontSize(8.5).fillColor('#475569').text(
+              isEnglish ? `Grade / CGPA: ${edu.grade}` : `Note / CGPA: ${edu.grade}`
+            );
           }
           if (edu.provenance) {
-            doc.fontSize(7.5).fillColor('#16a34a').font('Helvetica-Oblique').text(`✓ Source: ${edu.provenance}`);
+            doc.fontSize(7.5).fillColor('#16a34a').font('Helvetica-Oblique').text(
+              isEnglish ? `? Verified Source: ${edu.provenance}` : `? Nachweis: ${edu.provenance}`
+            );
           }
           doc.moveDown(0.6);
         }
@@ -71,7 +87,9 @@ export class PdfGeneratorService {
 
       // Section: Work Experience (Berufserfahrung)
       if (employmentData.length > 0) {
-        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text('BERUFSERFAHRUNG / WORK EXPERIENCE');
+        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text(
+          isEnglish ? 'PROFESSIONAL WORK EXPERIENCE' : 'BERUFSERFAHRUNG'
+        );
         doc.moveDown(0.3);
 
         for (const emp of employmentData) {
@@ -85,18 +103,22 @@ export class PdfGeneratorService {
         doc.moveDown(0.5);
       }
 
-      // Section: Skills & Competencies (Kenntnisse & Fähigkeiten)
+      // Section: Skills & Competencies (Kenntnisse & F?higkeiten)
       if (skillsData.length > 0) {
-        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text('KENNTNISSE & FÄHIGKEITEN / SKILLS');
+        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text(
+          isEnglish ? 'SKILLS & CORE COMPETENCIES' : 'KENNTNISSE & F?HIGKEITEN'
+        );
         doc.moveDown(0.3);
-        const skillList = skillsData.map((s) => `${s.name} (${s.level || 'Proficient'})`).join('  •  ');
+        const skillList = skillsData.map((s) => `${s.name} (${s.level || (isEnglish ? 'Proficient' : 'Fortgeschritten')})`).join('  ?  ');
         doc.fontSize(9).fillColor('#334155').font('Helvetica').text(skillList);
         doc.moveDown(1);
       }
 
       // Section: Languages (Sprachkenntnisse)
       if (languagesData.length > 0) {
-        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text('SPRACHKENNTNISSE / LANGUAGES');
+        doc.fontSize(12).fillColor('#1e293b').font('Helvetica-Bold').text(
+          isEnglish ? 'LANGUAGE PROFICIENCY' : 'SPRACHKENNTNISSE'
+        );
         doc.moveDown(0.3);
         for (const lang of languagesData) {
           const cert = lang.certificate ? ` [${lang.certificate}]` : '';
@@ -108,7 +130,9 @@ export class PdfGeneratorService {
 
       // Footer
       doc.fontSize(8).fillColor('#94a3b8').text(
-        `Generated via Nexora (Educaro Deutschland) on ${new Date().toLocaleDateString('de-DE')}`,
+        isEnglish
+          ? `Generated via Nexora (In collaboration with Educaro Deutschland) on ${new Date().toLocaleDateString('en-US')}`
+          : `Erstellt ?ber Nexora (In Kooperation mit Educaro Deutschland) am ${new Date().toLocaleDateString('de-DE')}`,
         45,
         780,
         { align: 'center', width: 505 },

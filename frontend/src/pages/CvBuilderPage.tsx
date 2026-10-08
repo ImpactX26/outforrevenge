@@ -64,6 +64,50 @@ export const CvBuilderPage: React.FC = () => {
     fetchCvs();
   }, []);
 
+  const handleLanguageChange = async (lang: 'de' | 'en') => {
+    setSelectedLanguage(lang);
+    setStatusMsg(null);
+
+    // Look for existing CV in requested language
+    const match = cvList.find((c) => {
+      const isEn = c.personalInfo?.language === 'en' || (c.title || '').toLowerCase().includes('english');
+      return lang === 'en' ? isEn : !isEn;
+    });
+
+    if (match) {
+      setActiveCv(match);
+      setSummaryText(match.summary || '');
+      setStatusMsg(lang === 'en' ? 'Loaded English CV version' : 'Deutschen Lebenslauf Entwurf geladen');
+    } else {
+      // Auto-generate in requested language
+      try {
+        setGenerating(true);
+        const res = await apiClient.post('/cv/generate', {
+          templateName: selectedTemplate,
+          language: lang,
+        });
+        if (res.data.success && res.data.cv) {
+          const newCv = res.data.cv;
+          setActiveCv(newCv);
+          setSummaryText(newCv.summary || '');
+          setStatusMsg(
+            lang === 'en'
+              ? 'New English Standard CV generated from verified dossier credentials!'
+              : 'Neuer deutscher Lebenslauf (DIN 5008) aus verifizierten Dossier-Daten generiert!',
+          );
+          const listRes = await apiClient.get('/cv');
+          if (listRes.data?.cvs) {
+            setCvList(listRes.data.cvs);
+          }
+        }
+      } catch (err: any) {
+        setStatusMsg(err.response?.data?.message || 'Failed to generate CV in ' + lang);
+      } finally {
+        setGenerating(false);
+      }
+    }
+  };
+
   const handleGenerateNew = async () => {
     try {
       setGenerating(true);
@@ -360,7 +404,7 @@ export const CvBuilderPage: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
                 <button
                   type="button"
-                  onClick={() => setSelectedLanguage('de')}
+                  onClick={() => handleLanguageChange('de')}
                   style={{
                     padding: '0.6rem 0.75rem',
                     borderRadius: '8px',
@@ -382,7 +426,7 @@ export const CvBuilderPage: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => setSelectedLanguage('en')}
+                  onClick={() => handleLanguageChange('en')}
                   style={{
                     padding: '0.6rem 0.75rem',
                     borderRadius: '8px',
@@ -554,7 +598,7 @@ export const CvBuilderPage: React.FC = () => {
             {summaryText && (
               <div style={{ marginBottom: '1.75rem' }}>
                 <h4 style={{ fontSize: '0.92rem', fontWeight: 800, textTransform: 'uppercase', color: '#1e3a8a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.65rem', letterSpacing: '0.05em' }}>
-                  Kurzprofil
+                  {isEnglish ? 'Professional Profile' : 'Kurzprofil'}
                 </h4>
                 <p style={{ fontSize: '0.85rem', color: '#334155', lineHeight: '1.6', margin: 0 }}>
                   {summaryText}
@@ -565,13 +609,13 @@ export const CvBuilderPage: React.FC = () => {
             {/* Beruflicher Werdegang (Work Experience) */}
             <div style={{ marginBottom: '1.75rem' }}>
               <h4 style={{ fontSize: '0.92rem', fontWeight: 800, textTransform: 'uppercase', color: '#1e3a8a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.85rem', letterSpacing: '0.05em' }}>
-                Beruflicher Werdegang
+                {isEnglish ? 'Work Experience' : 'Beruflicher Werdegang'}
               </h4>
               {activeCv.employmentData && activeCv.employmentData.length > 0 ? (
                 activeCv.employmentData.map((emp: any, idx: number) => (
                   <div key={idx} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '1.25rem', marginBottom: '1rem' }}>
                     <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
-                      {emp.startDate || 'Start'} &ndash; {emp.endDate || 'Heute'}
+                      {emp.startDate || (isEnglish ? 'Start' : 'Beginn')} &ndash; {emp.endDate || (isEnglish ? 'Present' : 'Heute')}
                     </div>
                     <div>
                       <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0f172a' }}>
@@ -587,7 +631,7 @@ export const CvBuilderPage: React.FC = () => {
                 ))
               ) : (
                 <div style={{ fontSize: '0.82rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                  Keine vorherige Berufserfahrung erfasst.
+                  {isEnglish ? 'No prior work experience recorded.' : 'Keine vorherige Berufserfahrung erfasst.'}
                 </div>
               )}
             </div>
@@ -595,13 +639,13 @@ export const CvBuilderPage: React.FC = () => {
             {/* Ausbildung (Education) */}
             <div style={{ marginBottom: '1.75rem' }}>
               <h4 style={{ fontSize: '0.92rem', fontWeight: 800, textTransform: 'uppercase', color: '#1e3a8a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.85rem', letterSpacing: '0.05em' }}>
-                Schul- & Hochschulausbildung
+                {isEnglish ? 'Education & Academic History' : 'Schul- & Hochschulausbildung'}
               </h4>
               {activeCv.educationData && activeCv.educationData.length > 0 ? (
                 activeCv.educationData.map((edu: any, idx: number) => (
                   <div key={idx} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '1.25rem', marginBottom: '1rem' }}>
                     <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
-                      {edu.graduationDate || 'Abschluss'}
+                      {edu.graduationDate || (isEnglish ? 'Graduation' : 'Abschluss')}
                     </div>
                     <div>
                       <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0f172a' }}>
@@ -652,7 +696,7 @@ export const CvBuilderPage: React.FC = () => {
 
               <div>
                 <h4 style={{ fontSize: '0.92rem', fontWeight: 800, textTransform: 'uppercase', color: '#1e3a8a', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.65rem', letterSpacing: '0.05em' }}>
-                  Sprachkenntnisse (GER / CEFR)
+                  {isEnglish ? 'Language Proficiency (CEFR)' : 'Sprachkenntnisse (GER / CEFR)'}
                 </h4>
                 <div style={{ fontSize: '0.82rem', color: '#334155' }}>
                   {activeCv.languagesData && activeCv.languagesData.length > 0 ? (
@@ -678,7 +722,7 @@ export const CvBuilderPage: React.FC = () => {
                   {activeCv.personalInfo?.location || 'Deutschland'}, den {currentDateFormatted}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.15rem' }}>
-                  Ort, Datum
+                  {isEnglish ? 'Place, Date' : 'Ort, Datum'}
                 </div>
               </div>
 
@@ -688,7 +732,7 @@ export const CvBuilderPage: React.FC = () => {
                   {activeCv.personalInfo?.fullName || 'Bewerber Name'}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                  (Unterschrift / Signature)
+                  {isEnglish ? 'Applicant Signature' : 'Unterschrift Bewerber'}
                 </div>
               </div>
             </div>

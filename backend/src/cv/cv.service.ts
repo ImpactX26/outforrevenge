@@ -22,7 +22,12 @@ export class CvService {
     private readonly aiService: AiService,
   ) {}
 
-  async generateCv(applicantId: string, templateName = 'Germany_EU_Clean', parentExecutionId?: string): Promise<any> {
+  async generateCv(
+    applicantId: string,
+    templateName = 'Germany_EU_Clean',
+    language = 'de',
+    parentExecutionId?: string,
+  ): Promise<any> {
     const user = await this.prisma.user.findUnique({ where: { id: applicantId } });
     if (!user) throw new NotFoundException('User not found');
 
@@ -38,6 +43,8 @@ export class CvService {
 
     if (!profile) throw new NotFoundException('Profile not found');
 
+    const isEnglish = (language || '').toLowerCase().startsWith('en');
+
     // Count existing CVs for versioning
     const existingCount = await this.prisma.cV.count({ where: { applicantId } });
     const version = existingCount + 1;
@@ -48,6 +55,7 @@ export class CvService {
       email: user.email,
       phone: profile.phone || user.phone || '',
       location: profile.location || 'India',
+      language: isEnglish ? 'en' : 'de',
     };
 
     const educationData = (profile.educations || []).map((edu) => ({
@@ -79,14 +87,22 @@ export class CvService {
       certificate: l.certificateType || undefined,
     }));
 
-    // Call CV Agent for professional German summary
-    const prompt = `Generate a German standard CV profile summary from:
+    // Call CV Agent for professional German or English summary
+    const prompt = isEnglish
+      ? `Generate a professional English CV executive summary for relocation to Germany from:
 Applicant: ${personalInfo.fullName}
 Goal: ${profile.currentGoal}
 Education: ${JSON.stringify(educationData)}
 Skills: ${JSON.stringify(skillsData)}
 Languages: ${JSON.stringify(languagesData)}
-Write a concise, professional 3-sentence summary in English/German highlighting key strengths.`;
+Write a concise, professional 3-sentence summary in English highlighting qualifications and readiness for Germany.`
+      : `Generate an idiomatic German standard CV profile summary (Kurzprofil auf Deutsch) from:
+Applicant: ${personalInfo.fullName}
+Goal: ${profile.currentGoal}
+Education: ${JSON.stringify(educationData)}
+Skills: ${JSON.stringify(skillsData)}
+Languages: ${JSON.stringify(languagesData)}
+Write a concise, professional 3-sentence summary in formal German (auf Deutsch) highlighting qualifications and readiness for Germany.`;
 
     let summary = '';
     try {
@@ -100,14 +116,20 @@ Write a concise, professional 3-sentence summary in English/German highlighting 
       );
       summary = aiResponse?.data?.summary || '';
     } catch (e: any) {
-      summary = `Dedicated candidate seeking a professional pathway in Germany. Possesses strong foundations in technical skills and verified German language proficiency.`;
+      summary = isEnglish
+        ? `Dedicated candidate seeking a professional or academic pathway in Germany. Possesses strong foundations in technical skills and verified language competencies.`
+        : `Engagierter Bewerber auf der Suche nach einem zukunftssicheren Bildungsweg in Deutschland. Fundierte Fachkenntnisse und nachgewiesene Sprachkompetenzen.`;
     }
+
+    const title = isEnglish
+      ? `${user.firstName} ${user.lastName} - English CV (v${version})`
+      : `${user.firstName} ${user.lastName} - Lebenslauf DIN 5008 (v${version})`;
 
     const savedCv = await this.prisma.$transaction(async (tx) => {
       const newCv = await tx.cV.create({
         data: {
           applicantId,
-          title: `${user.firstName} ${user.lastName} - German CV (v${version})`,
+          title,
           templateName,
           version,
           summary,

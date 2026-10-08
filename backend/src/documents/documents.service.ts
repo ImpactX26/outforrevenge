@@ -220,6 +220,16 @@ export class DocumentsService {
     return { success: true };
   }
 
+  async getDocumentBuffer(documentId: string, applicantId: string): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
+    const doc = await this.getDocumentById(documentId, applicantId);
+    const buffer = await this.storageService.getFileBuffer(doc.storageKey);
+    return {
+      buffer,
+      mimeType: doc.mimeType || 'application/pdf',
+      filename: doc.filename,
+    };
+  }
+
   private async proposeProfileUpdatesFromExtraction(
     applicantId: string,
     doc: any,

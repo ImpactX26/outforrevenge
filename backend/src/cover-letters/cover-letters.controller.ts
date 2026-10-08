@@ -24,8 +24,9 @@ export class CoverLettersController {
   async generate(
     @CurrentUser('id') applicantId: string,
     @Body('opportunityId') opportunityId?: string,
+    @Body('language') language?: string,
   ) {
-    const coverLetter = await this.coverLettersService.generateCoverLetter(applicantId, opportunityId);
+    const coverLetter = await this.coverLettersService.generateCoverLetter(applicantId, opportunityId, language);
     return {
       success: true,
       coverLetter,

@@ -25,6 +25,7 @@ import {
   Layers,
   Database,
   Eye,
+  Video,
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -44,7 +45,7 @@ export const DashboardLayout: React.FC = () => {
     { name: 'My Journey', path: '/journey', icon: Map },
     { name: 'CV Builder', path: '/cv', icon: FileCheck2 },
     { name: 'Cover Letter', path: '/cover-letter', icon: FileEdit },
-    { name: 'Interview Prep', path: '/interview', icon: GraduationCap },
+    { name: 'Live Video Interview', path: '/interview', icon: Video },
     { name: 'Notifications', path: '/notifications', icon: Bell },
   ];
 
@@ -52,6 +53,7 @@ export const DashboardLayout: React.FC = () => {
     { name: 'Consultant Dashboard', path: '/consultant', icon: Compass },
     { name: 'Assigned Applicants', path: '/consultant/applicants', icon: Users },
     { name: 'Review Queue', path: '/consultant/reviews', icon: ShieldCheck },
+    { name: 'Candidate Video Interviews', path: '/interview', icon: Video },
   ];
 
   const adminNav = [
@@ -62,6 +64,7 @@ export const DashboardLayout: React.FC = () => {
     { name: 'Educaro Services', path: '/admin/services', icon: Layers },
     { name: 'Routing Rules', path: '/admin/routing-rules', icon: Database },
     { name: 'Agent Executions', path: '/admin/agents', icon: Bot },
+    { name: 'Video Interview Panel', path: '/interview', icon: Video },
     { name: 'Analytics', path: '/admin/analytics', icon: BarChart3 },
     { name: 'Audit Logs', path: '/admin/audit-logs', icon: ShieldCheck },
   ];

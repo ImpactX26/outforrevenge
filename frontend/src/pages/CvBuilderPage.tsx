@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import apiClient from '../api/client';
 import {
   FileText,
   Sparkles,
   Download,
+  Upload,
   RefreshCw,
   Edit3,
   CheckCircle2,
@@ -29,8 +30,11 @@ export const CvBuilderPage: React.FC = () => {
   const [activeCv, setActiveCv] = useState<CV | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [uploadingCv, setUploadingCv] = useState(false);
+  const cvFileInputRef = useRef<HTMLInputElement>(null);
   const [polishing, setPolishing] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('GERMAN_STANDARD');
+  const [selectedLanguage, setSelectedLanguage] = useState<'de' | 'en'>('de');
   const [summaryText, setSummaryText] = useState('');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -44,6 +48,9 @@ export const CvBuilderPage: React.FC = () => {
           const current = res.data.cvs[0];
           setActiveCv(current);
           setSummaryText(current.summary || '');
+          if (current.personalInfo?.language === 'en') {
+            setSelectedLanguage('en');
+          }
         }
       }
     } catch (err) {
@@ -61,15 +68,49 @@ export const CvBuilderPage: React.FC = () => {
     try {
       setGenerating(true);
       setStatusMsg(null);
-      const res = await apiClient.post('/cv/generate', { templateName: selectedTemplate });
+      const res = await apiClient.post('/cv/generate', {
+        templateName: selectedTemplate,
+        language: selectedLanguage,
+      });
       if (res.data.success && res.data.cv) {
-        setStatusMsg('New German Lebenslauf generated from verified dossier credentials!');
+        setStatusMsg(
+          selectedLanguage === 'de'
+            ? 'Neuer deutscher Lebenslauf (DIN 5008) aus verifizierten Dossier-Daten generiert!'
+            : 'New English Standard CV generated from verified dossier credentials!',
+        );
         await fetchCvs();
       }
     } catch (err: any) {
       setStatusMsg(err.response?.data?.message || 'Failed to generate CV.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleUploadExistingCv = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingCv(true);
+      setStatusMsg(`Uploading and parsing "${file.name}"...`);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('documentType', 'CV');
+
+      const uploadRes = await apiClient.post('/documents/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (uploadRes.data.success) {
+        setStatusMsg(`CV uploaded successfully! Extracting credentials and building ${selectedLanguage === 'de' ? 'German DIN 5008 Lebenslauf' : 'English CV'}...`);
+        await handleGenerateNew();
+      }
+    } catch (err: any) {
+      setStatusMsg(err.response?.data?.message || 'Failed to upload CV file.');
+    } finally {
+      setUploadingCv(false);
+      if (cvFileInputRef.current) cvFileInputRef.current.value = '';
     }
   };
 
@@ -84,7 +125,7 @@ export const CvBuilderPage: React.FC = () => {
       if (res.data.success && res.data.improvedContent) {
         setSummaryText(res.data.improvedContent);
         setActiveCv({ ...activeCv, summary: res.data.improvedContent });
-        setStatusMsg('Summary polished to idiomatic German professional standard!');
+        setStatusMsg('Summary polished to idiomatic professional standard!');
       }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to polish summary.');
@@ -122,7 +163,9 @@ export const CvBuilderPage: React.FC = () => {
     }
   };
 
-  const currentDateFormatted = new Date().toLocaleDateString('de-DE', {
+  const isEnglish = selectedLanguage === 'en';
+
+  const currentDateFormatted = new Date().toLocaleDateString(isEnglish ? 'en-US' : 'de-DE', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -196,9 +239,27 @@ export const CvBuilderPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+          <input
+            type="file"
+            ref={cvFileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleUploadExistingCv}
+            accept=".pdf,.docx,.doc,.txt"
+          />
+
+          <button
+            onClick={() => cvFileInputRef.current?.click()}
+            disabled={uploadingCv || generating}
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem', padding: '0.65rem 1.15rem' }}
+          >
+            {uploadingCv ? <RefreshCw className="animate-spin" size={16} /> : <Upload size={16} />}
+            <span>{uploadingCv ? 'Uploading...' : 'Upload Existing CV'}</span>
+          </button>
+
           <button
             onClick={handleGenerateNew}
-            disabled={generating}
+            disabled={generating || uploadingCv}
             className="btn btn-secondary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem', padding: '0.65rem 1.15rem' }}
           >
@@ -291,10 +352,62 @@ export const CvBuilderPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Language Selector */}
+            <div className="card" style={{ padding: '1.25rem' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '0.65rem', letterSpacing: '0.04em' }}>
+                CV Language / Sprache
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLanguage('de')}
+                  style={{
+                    padding: '0.6rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: selectedLanguage === 'de' ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)',
+                    background: selectedLanguage === 'de' ? 'rgba(37, 99, 235, 0.25)' : 'rgba(15, 23, 42, 0.6)',
+                    color: selectedLanguage === 'de' ? '#60a5fa' : '#cbd5e1',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <span>🇩🇪 Deutsch</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedLanguage('en')}
+                  style={{
+                    padding: '0.6rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid',
+                    borderColor: selectedLanguage === 'en' ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)',
+                    background: selectedLanguage === 'en' ? 'rgba(37, 99, 235, 0.25)' : 'rgba(15, 23, 42, 0.6)',
+                    color: selectedLanguage === 'en' ? '#60a5fa' : '#cbd5e1',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <span>🇬🇧 English</span>
+                </button>
+              </div>
+            </div>
+
             {/* Template Selector */}
             <div className="card" style={{ padding: '1.25rem' }}>
               <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem', letterSpacing: '0.04em' }}>
-                German CV Layout Framework
+                CV Layout Framework
               </label>
               <select
                 value={selectedTemplate}
@@ -321,7 +434,7 @@ export const CvBuilderPage: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <PenTool size={14} color="#60a5fa" />
-                  Kurzprofil / Executive Summary
+                  {isEnglish ? 'Executive Profile Summary' : 'Kurzprofil / Executive Summary'}
                 </span>
                 <button
                   onClick={handlePolishSummary}
@@ -330,7 +443,7 @@ export const CvBuilderPage: React.FC = () => {
                   style={{ padding: '0.3rem 0.65rem', fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                 >
                   {polishing ? <RefreshCw className="animate-spin" size={12} /> : <Sparkles size={12} />}
-                  <span>Polish (German)</span>
+                  <span>Polish ({isEnglish ? 'English' : 'German'})</span>
                 </button>
               </div>
 
@@ -338,7 +451,7 @@ export const CvBuilderPage: React.FC = () => {
                 rows={6}
                 value={summaryText}
                 onChange={(e) => setSummaryText(e.target.value)}
-                placeholder="Kurzprofil auf Deutsch oder Englisch..."
+                placeholder={isEnglish ? "Professional summary in English..." : "Kurzprofil auf Deutsch..."}
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -373,14 +486,14 @@ export const CvBuilderPage: React.FC = () => {
             >
               <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <BookOpen size={14} color="#38bdf8" />
-                DIN 5008 Compliance Checklist
+                {isEnglish ? 'European Standards Checklist' : 'DIN 5008 Compliance Checklist'}
               </div>
               <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#94a3b8', fontSize: '0.78rem', lineHeight: '1.6' }}>
-                <li>Antichronological order (most recent position first)</li>
-                <li>Standard German date format (MM/YYYY or DD.MM.YYYY)</li>
-                <li>No unexplained gaps (lückenloser Lebenslauf)</li>
-                <li>Official CEFR language proficiency standards (A1–C2)</li>
-                <li>Concludes with place, date, and applicant signature</li>
+                <li>{isEnglish ? 'Reverse chronological order (latest position first)' : 'Antichronological order (most recent position first)'}</li>
+                <li>{isEnglish ? 'Standard date notation (MM/YYYY or DD.MM.YYYY)' : 'Standard German date format (MM/YYYY or DD.MM.YYYY)'}</li>
+                <li>{isEnglish ? 'Complete history without unaddressed gaps' : 'No unexplained gaps (lückenloser Lebenslauf)'}</li>
+                <li>{isEnglish ? 'Official CEFR language proficiency standards (A1–C2)' : 'Official CEFR language proficiency standards (A1–C2)'}</li>
+                <li>{isEnglish ? 'Concludes with location, date, and signature' : 'Concludes with place, date, and applicant signature'}</li>
               </ul>
             </div>
           </div>
@@ -405,16 +518,16 @@ export const CvBuilderPage: React.FC = () => {
                   {activeCv.personalInfo?.fullName || 'Bewerber Name'}
                 </h2>
                 <div style={{ fontSize: '0.95rem', color: '#1d4ed8', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.65rem' }}>
-                  Lebenslauf
+                  {isEnglish ? 'CURRICULUM VITAE' : 'LEBENSLAUF'}
                 </div>
                 <div style={{ fontSize: '0.82rem', color: '#475569', display: 'flex', gap: '1.25rem', flexWrap: 'wrap', lineHeight: '1.4' }}>
                   <span><strong>E-Mail:</strong> {activeCv.personalInfo?.email || 'email@example.com'}</span>
                   {activeCv.personalInfo?.phone && <span><strong>Tel:</strong> {activeCv.personalInfo.phone}</span>}
-                  {activeCv.personalInfo?.location && <span><strong>Wohnort:</strong> {activeCv.personalInfo.location}</span>}
+                  {activeCv.personalInfo?.location && <span><strong>{isEnglish ? 'Location:' : 'Wohnort:'}</strong> {activeCv.personalInfo.location}</span>}
                 </div>
               </div>
 
-              {/* Photo Frame Placeholder (German Standard Application Photo) */}
+              {/* Photo Frame Placeholder */}
               <div
                 style={{
                   width: '95px',
@@ -432,7 +545,7 @@ export const CvBuilderPage: React.FC = () => {
                   padding: '0.25rem',
                 }}
               >
-                <div style={{ fontWeight: 600, color: '#334155' }}>Bewerbungsfoto</div>
+                <div style={{ fontWeight: 600, color: '#334155' }}>{isEnglish ? 'Photo' : 'Bewerbungsfoto'}</div>
                 <div style={{ fontSize: '0.58rem', marginTop: '0.15rem' }}>45 × 35 mm</div>
               </div>
             </div>

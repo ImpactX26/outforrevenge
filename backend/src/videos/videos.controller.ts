@@ -3,10 +3,12 @@ import {
   Post,
   Get,
   Param,
+  Res,
   UseGuards,
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { VideosService } from './videos.service';
@@ -35,6 +37,21 @@ export class VideosController {
     };
   }
 
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('video'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload 60-second applicant introduction video (alias)' })
+  async uploadAlias(
+    @CurrentUser('id') applicantId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const video = await this.videosService.uploadVideo(applicantId, file);
+    return {
+      success: true,
+      video,
+    };
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all introduction videos submitted by applicant' })
   async list(@CurrentUser('id') applicantId: string) {
@@ -43,6 +60,20 @@ export class VideosController {
       success: true,
       videos,
     };
+  }
+
+  @Get(':id/stream')
+  @ApiOperation({ summary: 'Stream introduction video binary' })
+  async stream(
+    @CurrentUser('id') applicantId: string,
+    @Param('id') videoId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, mimeType } = await this.videosService.getVideoBuffer(videoId, applicantId);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.send(buffer);
   }
 
   @Get(':id')

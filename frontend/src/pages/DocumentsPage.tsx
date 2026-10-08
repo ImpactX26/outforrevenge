@@ -17,6 +17,7 @@ import {
   FileCheck2,
   Check,
   X,
+  Download,
 } from 'lucide-react';
 import { DocumentItem, DocumentType, DocumentStatus } from '../types';
 
@@ -472,6 +473,25 @@ export const DocumentsPage: React.FC = () => {
                         >
                           <RefreshCw size={13} />
                         </button>
+                        <a
+                          href={`/api/documents/${doc.id}/download?token=${encodeURIComponent(localStorage.getItem('token') || '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn"
+                          style={{
+                            padding: '0.35rem 0.55rem',
+                            fontSize: '0.75rem',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            color: '#94a3b8',
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                          }}
+                          title="Download / View original document"
+                        >
+                          <Download size={13} />
+                        </a>
                         <button
                           onClick={() => handleDelete(doc.id)}
                           className="btn"

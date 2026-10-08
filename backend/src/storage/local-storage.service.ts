@@ -78,6 +78,15 @@ export class LocalStorageService implements IStorageService {
     return false;
   }
 
+  hasFile(storageKey: string): boolean {
+    try {
+      const fullPath = this.resolveSafePath(storageKey);
+      return fs.existsSync(fullPath);
+    } catch {
+      return false;
+    }
+  }
+
   private resolveSafePath(storageKey: string): string {
     const normalizedKey = path.normalize(storageKey).replace(/^(\.\.[\/\\])+/, '');
     return path.join(this.basePath, normalizedKey);

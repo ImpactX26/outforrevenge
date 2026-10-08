@@ -59,6 +59,11 @@ export interface ApplicantProfile {
   employments?: Employment[];
   skills?: Skill[];
   languages?: Language[];
+  germanLevel?: string;
+  anabinStatus?: string;
+  bavarianGpa?: number;
+  documents?: any[];
+  videoIntroductions?: any[];
 }
 
 export interface Education {
@@ -127,6 +132,7 @@ export interface VideoItem {
   id: string;
   filename: string;
   status: DocumentStatus;
+  storageKey?: string;
   durationSeconds?: number;
   transcript?: string;
   analysis?: {
@@ -153,6 +159,7 @@ export interface OpportunityItem {
   id: string;
   title: string;
   type: OpportunityType;
+  category?: string;
   organization: string;
   location: string;
   description: string;

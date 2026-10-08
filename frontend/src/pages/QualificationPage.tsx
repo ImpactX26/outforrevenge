@@ -15,6 +15,7 @@ import {
   GraduationCap,
   Scale,
   ExternalLink,
+  Video,
 } from 'lucide-react';
 import { QualificationAssessment, QualificationStatus } from '../types';
 
@@ -513,14 +514,24 @@ export const QualificationPage: React.FC = () => {
                 Educaro Deutschland provides verified language academies and credential recognition packages tailored to these findings.
               </div>
             </div>
-            <button
-              onClick={() => navigate('/next-step')}
-              className="btn btn-primary"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.35rem' }}
-            >
-              <span>View Educaro Solutions</span>
-              <ArrowRight size={16} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <button
+                onClick={() => navigate('/interview')}
+                className="btn btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.25rem' }}
+              >
+                <Video size={16} color="#60a5fa" />
+                <span>Start Video Interview</span>
+              </button>
+              <button
+                onClick={() => navigate('/next-step')}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.35rem' }}
+              >
+                <span>View Educaro Solutions</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </>
       ) : (

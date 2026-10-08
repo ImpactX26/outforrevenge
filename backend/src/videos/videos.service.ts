@@ -276,4 +276,14 @@ Extract key summaries and skills present in the transcript. Do NOT invent backgr
       fileSize: Number(video.fileSize),
     };
   }
+
+  async getVideoBuffer(videoId: string, applicantId: string): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
+    const video = await this.getVideoById(videoId, applicantId);
+    const buffer = await this.storageService.getFileBuffer(video.storageKey);
+    return {
+      buffer,
+      mimeType: video.mimeType || 'video/mp4',
+      filename: video.filename,
+    };
+  }
 }

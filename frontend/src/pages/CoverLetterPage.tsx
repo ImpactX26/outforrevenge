@@ -23,6 +23,7 @@ export const CoverLetterPage: React.FC = () => {
   const [activeLetter, setActiveLetter] = useState<any | null>(null);
   const [opportunities, setOpportunities] = useState<OpportunityItem[]>([]);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string>('');
+  const [selectedLanguage, setSelectedLanguage] = useState<'de' | 'en'>('de');
   const [letterContent, setLetterContent] = useState('');
   const [letterTitle, setLetterTitle] = useState('');
   const [loading, setLoading] = useState(true);
@@ -72,10 +73,15 @@ export const CoverLetterPage: React.FC = () => {
       setStatusMsg(null);
       const res = await apiClient.post('/cover-letters/generate', {
         opportunityId: selectedOpportunityId || undefined,
+        language: selectedLanguage,
       });
 
       if (res.data.success && res.data.coverLetter) {
-        setStatusMsg('New German Anschreiben generated adhering to DIN 5008 standards!');
+        setStatusMsg(
+          selectedLanguage === 'de'
+            ? 'Neues deutsches Anschreiben nach DIN 5008 generiert!'
+            : 'New English Cover Letter generated adhering to international business standards!',
+        );
         await fetchData();
       }
     } catch (err: any) {
@@ -183,6 +189,48 @@ export const CoverLetterPage: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <label style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+              Target Language
+            </label>
+            <div style={{ display: 'inline-flex', background: 'rgba(15, 23, 42, 0.85)', padding: '0.2rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedLanguage('de')}
+                style={{
+                  padding: '0.45rem 0.8rem',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  background: selectedLanguage === 'de' ? '#2563eb' : 'transparent',
+                  color: selectedLanguage === 'de' ? '#fff' : '#94a3b8',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                🇩🇪 Deutsch
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedLanguage('en')}
+                style={{
+                  padding: '0.45rem 0.8rem',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  background: selectedLanguage === 'en' ? '#2563eb' : 'transparent',
+                  color: selectedLanguage === 'en' ? '#fff' : '#94a3b8',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                🇬🇧 English
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
               Target Opportunity
             </label>
             <select
@@ -222,7 +270,7 @@ export const CoverLetterPage: React.FC = () => {
             }}
           >
             {generating ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} />}
-            <span>Generate Anschreiben</span>
+            <span>{selectedLanguage === 'de' ? 'Generate Anschreiben' : 'Generate Cover Letter'}</span>
           </button>
         </div>
       </div>
@@ -315,7 +363,7 @@ export const CoverLetterPage: React.FC = () => {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', fontSize: '0.75rem', color: '#64748b' }}>
                 <span>Word count: <strong>{wordCount}</strong></span>
-                <span>Language: <strong>German (Formal)</strong></span>
+                <span>Language: <strong>{selectedLanguage === 'de' ? 'Deutsch (DIN 5008)' : 'English (International)'}</strong></span>
               </div>
 
               <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.25rem' }}>
@@ -350,15 +398,15 @@ export const CoverLetterPage: React.FC = () => {
             >
               <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Briefcase size={14} color="#38bdf8" />
-                German Anschreiben Structure
+                {selectedLanguage === 'de' ? 'German Anschreiben Structure' : 'International Cover Letter Structure'}
               </div>
               <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#94a3b8', fontSize: '0.78rem', lineHeight: '1.6' }}>
-                <li><strong>Absender:</strong> Contact information at top right</li>
-                <li><strong>Empfänger:</strong> Company / University address</li>
-                <li><strong>Betreff:</strong> Bold, specific reference line</li>
-                <li><strong>Einleitung:</strong> Strong opening (no generic clichés)</li>
-                <li><strong>Hauptteil:</strong> Match qualifications to target role</li>
-                <li><strong>Schluss:</strong> Earliest start date & salary (if applicable)</li>
+                <li><strong>{selectedLanguage === 'de' ? 'Absender:' : 'Header:'}</strong> Contact information at top right</li>
+                <li><strong>{selectedLanguage === 'de' ? 'Empfänger:' : 'Recipient:'}</strong> Company / University address</li>
+                <li><strong>{selectedLanguage === 'de' ? 'Betreff:' : 'Subject:'}</strong> Bold, specific reference line</li>
+                <li><strong>{selectedLanguage === 'de' ? 'Einleitung:' : 'Introduction:'}</strong> Strong opening (no generic clichés)</li>
+                <li><strong>{selectedLanguage === 'de' ? 'Hauptteil:' : 'Body:'}</strong> Match qualifications to target role</li>
+                <li><strong>{selectedLanguage === 'de' ? 'Schluss:' : 'Closing:'}</strong> Earliest start date & motivation</li>
               </ul>
             </div>
           </div>
@@ -378,10 +426,12 @@ export const CoverLetterPage: React.FC = () => {
             <div style={{ marginBottom: '1.25rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem', letterSpacing: '-0.01em' }}>
-                  {letterTitle || 'Bewerbungsschreiben'}
+                  {letterTitle || (selectedLanguage === 'de' ? 'Bewerbungsschreiben' : 'Cover Letter')}
                 </h2>
                 <div style={{ fontSize: '0.82rem', color: '#2563eb', fontWeight: 600 }}>
-                  DIN 5008 Konform &bull; Deutsch (Formales Anschreiben)
+                  {selectedLanguage === 'de'
+                    ? 'DIN 5008 Konform • Deutsch (Formales Anschreiben)'
+                    : 'International Standard • English (Professional Cover Letter)'}
                 </div>
               </div>
 

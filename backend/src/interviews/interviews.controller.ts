@@ -19,17 +19,29 @@ import { GoalType } from '../common/enums';
 export class InterviewsController {
   constructor(private readonly interviewsService: InterviewsService) {}
 
+  @Get()
+  @ApiOperation({ summary: 'Get all interview sessions for the current applicant' })
+  async list(@CurrentUser('id') applicantId: string) {
+    const sessions = await this.interviewsService.getApplicantSessions(applicantId);
+    return {
+      success: true,
+      sessions,
+    };
+  }
+
   @Post('start')
   @ApiOperation({ summary: 'Start a German interview preparation session' })
   async start(
     @CurrentUser('id') applicantId: string,
     @Body('pathway') pathway: GoalType,
     @Body('targetRole') targetRole?: string,
+    @Body('opportunityId') opportunityId?: string,
   ) {
     const session = await this.interviewsService.startSession(
       applicantId,
       pathway || GoalType.AUSBILDUNG,
       targetRole,
+      opportunityId,
     );
     return {
       success: true,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import apiClient from '../api/client';
 import {
   Briefcase,
@@ -16,6 +17,7 @@ import {
   Layers,
   ChevronRight,
   Check,
+  Video,
 } from 'lucide-react';
 import { OpportunityItem, OpportunityMatch, OpportunityType } from '../types';
 
@@ -305,14 +307,24 @@ export const OpportunitiesPage: React.FC = () => {
                     {opp.type === 'STUDY' ? 'Public University' : opp.type === 'AUSBILDUNG' ? 'Paid Dual Training' : 'Skilled Job'}
                   </span>
 
-                  <button
-                    onClick={() => alert(`Connecting with Educaro advisor for application to: ${opp.title} (${opp.organization})`)}
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.78rem', padding: '0.4rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                  >
-                    <span>Apply via Educaro</span>
-                    <ChevronRight size={14} />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Link
+                      to="/interview"
+                      className="btn btn-primary"
+                      style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none' }}
+                    >
+                      <Video size={13} />
+                      <span>Video Interview</span>
+                    </Link>
+                    <button
+                      onClick={() => alert(`Connecting with Educaro advisor for application to: ${opp.title} (${opp.organization})`)}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      <span>Apply</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             );

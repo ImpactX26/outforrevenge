@@ -26,8 +26,9 @@ export class CvController {
   async generate(
     @CurrentUser('id') applicantId: string,
     @Body('templateName') templateName?: string,
+    @Body('language') language?: string,
   ) {
-    const cv = await this.cvService.generateCv(applicantId, templateName);
+    const cv = await this.cvService.generateCv(applicantId, templateName, language);
     return {
       success: true,
       cv,

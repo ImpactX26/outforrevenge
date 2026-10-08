@@ -14,15 +14,23 @@ export class CloudinaryStorageService implements IStorageService {
   private readonly apiSecret: string;
   private readonly enabled: boolean;
 
-  private readonly allowedExtensions = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.mp4'];
-  private readonly allowedMimes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'image/jpeg',
-    'image/jpg',
-    'image/png',
-    'video/mp4',
+  private readonly allowedExtensions = [
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.webp',
+    '.txt',
+    '.mp4',
+    '.webm',
+    '.mov',
+    '.avi',
+    '.mkv',
+    '.m4a',
+    '.mp3',
+    '.wav',
   ];
 
   constructor(
@@ -61,23 +69,37 @@ export class CloudinaryStorageService implements IStorageService {
     buffer: Buffer,
     mimeType: string,
   ): Promise<StorageUploadResult> {
+    // Normalize filename and extension if missing
+    let safeFilename = filename;
+    if (!path.extname(safeFilename)) {
+      if (mimeType.startsWith('video/webm')) safeFilename += '.webm';
+      else if (mimeType.startsWith('video/mp4')) safeFilename += '.mp4';
+      else if (mimeType.startsWith('image/png')) safeFilename += '.png';
+      else if (mimeType.startsWith('image/jpeg')) safeFilename += '.jpg';
+      else if (mimeType === 'application/pdf') safeFilename += '.pdf';
+      else safeFilename += '.bin';
+    }
+
     // 1. Strict validation of extension, MIME, size and dangerous types
-    this.validateFile(filename, mimeType, buffer);
+    this.validateFile(safeFilename, mimeType, buffer);
 
     const safeApplicant = applicantId.replace(/[^a-zA-Z0-9_-]/g, '');
     const folder = `nexora/applicants/${safeApplicant}/${category}`;
-    const cleanName = filename.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanName = safeFilename.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
     const publicId = `${folder}/${Date.now()}_${cleanName}`;
-    const ext = path.extname(filename).replace('.', '').toLowerCase() || 'bin';
-    const resourceType = mimeType.startsWith('video/') ? 'video' : mimeType.startsWith('image/') ? 'image' : 'raw';
+    const ext = path.extname(safeFilename).replace('.', '').toLowerCase() || 'bin';
+    const baseMime = (mimeType || '').split(';')[0].trim().toLowerCase();
+    const isVideoOrAudio = baseMime.startsWith('video/') || baseMime.startsWith('audio/');
+    const isImage = baseMime.startsWith('image/');
+    const resourceType = isVideoOrAudio ? 'video' : isImage ? 'image' : 'raw';
 
     if (!this.enabled) {
-      const localRes = await this.localFallback.uploadFile(applicantId, category, filename, buffer, mimeType);
+      const localRes = await this.localFallback.uploadFile(applicantId, category, safeFilename, buffer, mimeType);
       await this.saveFileAssetMetadata(
         localRes.storageKey,
         resourceType,
         ext,
-        filename,
+        safeFilename,
         localRes.fileSize,
         applicantId,
         localRes.url,
@@ -94,14 +116,14 @@ export class CloudinaryStorageService implements IStorageService {
 
       const formData = new FormData();
       const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
-      formData.append('file', blob, filename);
+      formData.append('file', blob, safeFilename);
       formData.append('api_key', this.apiKey);
       formData.append('timestamp', timestamp.toString());
       formData.append('public_id', publicId);
       formData.append('folder', folder);
       formData.append('signature', signature);
 
-      const targetResourceType = resourceType === 'raw' ? 'raw' : resourceType === 'video' ? 'video' : 'auto';
+      const targetResourceType = isVideoOrAudio ? 'video' : isImage ? 'image' : 'raw';
       const uploadUrl = `https://api.cloudinary.com/v1_1/${this.cloudName}/${targetResourceType}/upload`;
 
       const res = await fetch(uploadUrl, {
@@ -124,7 +146,7 @@ export class CloudinaryStorageService implements IStorageService {
         finalPublicId,
         data.resource_type || resourceType,
         data.format || ext,
-        filename,
+        safeFilename,
         fileSize,
         applicantId,
         finalUrl,
@@ -132,19 +154,19 @@ export class CloudinaryStorageService implements IStorageService {
 
       return {
         storageKey: finalPublicId,
-        filename,
+        filename: safeFilename,
         fileSize,
         mimeType,
         url: finalUrl,
       };
     } catch (err: any) {
       this.logger.warn(`Cloudinary upload attempt failed: ${err.message}. Retrying with local fallback.`);
-      const localRes = await this.localFallback.uploadFile(applicantId, category, filename, buffer, mimeType);
+      const localRes = await this.localFallback.uploadFile(applicantId, category, safeFilename, buffer, mimeType);
       await this.saveFileAssetMetadata(
         localRes.storageKey,
         resourceType,
         ext,
-        filename,
+        safeFilename,
         localRes.fileSize,
         applicantId,
         localRes.url,
@@ -163,6 +185,10 @@ export class CloudinaryStorageService implements IStorageService {
       const res = await fetch(storageKey);
       const arrayBuf = await res.arrayBuffer();
       return Buffer.from(arrayBuf);
+    }
+
+    if (this.localFallback.hasFile(storageKey)) {
+      return this.localFallback.getFileBuffer(storageKey);
     }
 
     if (this.enabled && storageKey.startsWith('nexora/')) {
@@ -184,6 +210,10 @@ export class CloudinaryStorageService implements IStorageService {
   async getSecureUrl(storageKey: string, expiresInSeconds = 86400): Promise<string> {
     if (storageKey.startsWith('http://') || storageKey.startsWith('https://')) {
       return storageKey;
+    }
+
+    if (this.localFallback.hasFile(storageKey)) {
+      return this.localFallback.getSecureUrl(storageKey, expiresInSeconds);
     }
 
     if (this.enabled && storageKey.startsWith('nexora/')) {
@@ -234,19 +264,6 @@ export class CloudinaryStorageService implements IStorageService {
   private validateFile(filename: string, mimeType: string, buffer: Buffer): void {
     const ext = path.extname(filename).toLowerCase();
 
-    if (!this.allowedExtensions.includes(ext)) {
-      throw new BadRequestException(
-        `Disallowed file extension "${ext}". Allowed formats: PDF, DOC, DOCX, JPG, JPEG, PNG, MP4`,
-      );
-    }
-
-    const cleanMime = mimeType.toLowerCase();
-    if (!this.allowedMimes.includes(cleanMime)) {
-      throw new BadRequestException(
-        `Disallowed MIME type "${cleanMime}". Allowed formats: PDF, DOC, DOCX, JPG, JPEG, PNG, MP4`,
-      );
-    }
-
     // Dangerous extension check
     const dangerous = ['.exe', '.sh', '.bat', '.cmd', '.js', '.vbs', '.py', '.php', '.bin'];
     if (dangerous.some((d) => filename.toLowerCase().endsWith(d))) {
@@ -256,6 +273,26 @@ export class CloudinaryStorageService implements IStorageService {
     // Size limit: 100MB max
     if (buffer.length > 100 * 1024 * 1024) {
       throw new BadRequestException('File size exceeds the 100MB limit.');
+    }
+
+    // Base MIME check (allowing video, audio, image, and standard documents)
+    const baseMime = (mimeType || '').split(';')[0].trim().toLowerCase();
+    const isAllowedMime =
+      baseMime.startsWith('image/') ||
+      baseMime.startsWith('video/') ||
+      baseMime.startsWith('audio/') ||
+      baseMime === 'application/pdf' ||
+      baseMime === 'application/msword' ||
+      baseMime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      baseMime === 'text/plain' ||
+      baseMime === 'application/octet-stream';
+
+    const isAllowedExt = ext ? this.allowedExtensions.includes(ext) : true;
+
+    if (!isAllowedMime && !isAllowedExt) {
+      throw new BadRequestException(
+        `Disallowed file type "${mimeType || ext}". Allowed formats: PDF, DOC, DOCX, JPG, PNG, WEBM, MP4, MOV.`,
+      );
     }
   }
 

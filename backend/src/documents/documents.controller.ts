@@ -5,11 +5,13 @@ import {
   Delete,
   Param,
   Body,
+  Res,
   UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { DocumentsService } from './documents.service';
@@ -29,6 +31,25 @@ export class DocumentsController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload an applicant document' })
   async upload(
+    @CurrentUser('id') applicantId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('documentType') documentType: DocumentType,
+  ) {
+    if (!documentType) {
+      documentType = DocumentType.OTHER;
+    }
+    const doc = await this.documentsService.uploadDocument(applicantId, file, documentType);
+    return {
+      success: true,
+      document: doc,
+    };
+  }
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload an applicant document (alias)' })
+  async uploadAlias(
     @CurrentUser('id') applicantId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('documentType') documentType: DocumentType,
@@ -66,6 +87,20 @@ export class DocumentsController {
     };
   }
 
+  @Get(':id/download')
+  @ApiOperation({ summary: 'Download or stream raw document binary' })
+  async download(
+    @CurrentUser('id') applicantId: string,
+    @Param('id') documentId: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, mimeType, filename } = await this.documentsService.getDocumentBuffer(documentId, applicantId);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
+  }
+
   @Post(':id/analyze')
   @ApiOperation({ summary: 'Trigger AI document extraction' })
   async analyze(
@@ -82,6 +117,19 @@ export class DocumentsController {
   @Post(':id/retry')
   @ApiOperation({ summary: 'Retry document extraction' })
   async retry(
+    @CurrentUser('id') applicantId: string,
+    @Param('id') documentId: string,
+  ) {
+    const extraction = await this.documentsService.analyzeDocument(documentId, applicantId);
+    return {
+      success: true,
+      extraction,
+    };
+  }
+
+  @Post(':id/re-extract')
+  @ApiOperation({ summary: 'Re-extract document credentials (alias)' })
+  async reExtract(
     @CurrentUser('id') applicantId: string,
     @Param('id') documentId: string,
   ) {

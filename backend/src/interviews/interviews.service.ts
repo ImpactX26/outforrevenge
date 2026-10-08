@@ -20,23 +20,31 @@ export class InterviewsService {
     applicantId: string,
     pathway: GoalType,
     targetRole?: string,
+    opportunityId?: string,
   ): Promise<any> {
-    const roleName = targetRole || (pathway === GoalType.AUSBILDUNG
+    let roleName = targetRole || (pathway === GoalType.AUSBILDUNG
       ? 'Fachinformatiker für Anwendungsentwicklung'
       : pathway === GoalType.STUDY
       ? 'Master of Science Candidate'
       : 'Software Engineer');
+
+    if (opportunityId) {
+      const opp = await this.prisma.opportunity.findUnique({ where: { id: opportunityId } });
+      if (opp) {
+        roleName = `${opp.title} (${opp.organization})`;
+      }
+    }
 
     const questions = [
       {
         id: uuidv4(),
         question: `Warum möchten Sie eine Ausbildung / ein Studium als ${roleName} in Deutschland absolvieren? (Why do you wish to pursue this pathway in Germany?)`,
         category: 'Motivation & Pathway Alignment',
-        tips: 'Focus on your appreciation of the practical German dual system or academic rigor, and articulate long-term commitment.',
+        tips: 'Focus on your appreciation of the practical German dual system or academic rigor, and articulate long-term career commitment.',
       },
       {
         id: uuidv4(),
-        question: 'Wie gehen Sie mit technischen Herausforderungen oder komplexen Fehlern in der Softwareentwicklung um? (How do you handle technical problems?)',
+        question: `Wie gehen Sie mit technischen Herausforderungen oder komplexen Fehlern in der Rolle als ${roleName} um? (How do you handle technical challenges?)`,
         category: 'Problem Solving & Competence',
         tips: 'Describe a structured approach: reproduction, logging/debugging, hypothesis testing, and solution verification.',
       },
@@ -44,7 +52,13 @@ export class InterviewsService {
         id: uuidv4(),
         question: 'Wie schätzen Sie Ihre aktuellen Deutschkenntnisse ein und wie bereiten Sie sich auf den Arbeitsalltag in Deutschland vor? (Language & Cultural Adaptation)',
         category: 'Language & Integration',
-        tips: 'Be honest about your current CEFR level (e.g. A2/B1), and emphasize active immersion and ongoing language classes.',
+        tips: 'Be honest about your current CEFR level (e.g. A2/B1/B2), and emphasize active immersion and professional German etiquette.',
+      },
+      {
+        id: uuidv4(),
+        question: 'Sind Ihre Zeugnisse (APS, Anabin-Anerkennung, Sperrkonto) vorbereitet und wie planen Sie Ihren Umzug nach Deutschland? (Visa & Logistics Readiness)',
+        category: 'Visa & Logistics Readiness',
+        tips: 'Outline your documentation status including degree verification, financial proof, and your targeted arrival timeline.',
       },
     ];
 
@@ -151,5 +165,12 @@ Do NOT promise hiring decisions or visa guarantees.`;
     if (!session) throw new NotFoundException('Session not found');
     if (session.applicantId !== applicantId) throw new ForbiddenException('Unauthorized access');
     return session;
+  }
+
+  async getApplicantSessions(applicantId: string): Promise<any[]> {
+    return this.prisma.interviewSession.findMany({
+      where: { applicantId },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 }

@@ -320,6 +320,28 @@ export const VideoPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Embedded Video Player */}
+                <div
+                  style={{
+                    background: '#090d16',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                >
+                  <video
+                    controls
+                    preload="metadata"
+                    style={{ width: '100%', maxHeight: '340px', background: '#000', objectFit: 'contain' }}
+                    src={vid.storageKey?.startsWith('http') ? vid.storageKey : `/api/videos/${vid.id}/stream?token=${encodeURIComponent(localStorage.getItem('token') || '')}`}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+
                 {/* Spoken Transcript Block */}
                 {vid.transcript && (
                   <div

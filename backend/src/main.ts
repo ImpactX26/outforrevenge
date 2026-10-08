@@ -12,6 +12,14 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
+process.on('uncaughtException', (err: any) => {
+  if (err?.code === 'ECONNRESET' || err?.message?.includes('ECONNRESET')) {
+    // Neon cloud connection pooler drops idle sockets; pg pool auto-reconnects
+    return;
+  }
+  console.error('Uncaught Exception:', err);
+});
+
 async function bootstrap() {
   const logger = new Logger('NexoraBootstrap');
 

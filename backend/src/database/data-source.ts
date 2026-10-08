@@ -86,6 +86,11 @@ export const dataSourceOptions: DataSourceOptions = {
   logging: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   ssl: isRemoteOrSsl ? { rejectUnauthorized: false } : false,
   installExtensions: false,
+  extra: {
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  },
 };
 
 export const AppDataSource = new DataSource(dataSourceOptions);

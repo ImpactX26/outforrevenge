@@ -12,10 +12,19 @@ export class GroqAiProvider implements IAiProvider {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+  private activeModel: string;
+  private readonly fallbackModels = [
+    'openai/gpt-oss-120b',
+    'qwen/qwen3.8-27b',
+    'openai/gpt-oss-20b',
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
+  ];
 
   constructor() {
     this.apiKey = process.env.GROQ_API_KEY || process.env.AI_PROVIDER_API_KEY || '';
-    this.model = process.env.GROQ_MODEL || process.env.AI_MODEL || 'llama-3.3-70b-versatile';
+    this.model = process.env.GROQ_MODEL || process.env.AI_MODEL || 'openai/gpt-oss-120b';
+    this.activeModel = this.model;
   }
 
   async generateStructured<T>(options: AiStructuredOptions<T>): Promise<T> {
@@ -81,37 +90,77 @@ export class GroqAiProvider implements IAiProvider {
     expectJson: boolean,
     temperature = 0.2,
   ): Promise<string> {
-    const body: Record<string, any> = {
-      model: this.model,
-      messages,
-      temperature,
-    };
+    const candidateModels = Array.from(new Set([this.activeModel, ...this.fallbackModels]));
+    let lastError: Error | null = null;
 
-    if (expectJson) {
-      body.response_format = { type: 'json_object' };
+    for (const modelToTry of candidateModels) {
+      const body: Record<string, any> = {
+        model: modelToTry,
+        messages,
+        temperature,
+      };
+
+      if (expectJson) {
+        body.response_format = { type: 'json_object' };
+      }
+
+      try {
+        const res = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          // If model was not found, continue to next fallback model
+          if (res.status === 404 || errorText.includes('model_not_found') || errorText.includes('does not exist')) {
+            lastError = new Error(`Model ${modelToTry} not found: ${errorText}`);
+            continue;
+          }
+          // If response_format json_object is not supported by this model, retry without it
+          if (expectJson && (res.status === 400 || errorText.includes('response_format'))) {
+            delete body.response_format;
+            const retryRes = await fetch(this.apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${this.apiKey}`,
+              },
+              body: JSON.stringify(body),
+            });
+            if (retryRes.ok) {
+              const retryData: any = await retryRes.json();
+              const retryContent = retryData?.choices?.[0]?.message?.content;
+              if (retryContent) {
+                this.activeModel = modelToTry;
+                return retryContent;
+              }
+            }
+          }
+          throw new Error(`Groq API returned status ${res.status}: ${errorText}`);
+        }
+
+        const data: any = await res.json();
+        const content = data?.choices?.[0]?.message?.content;
+        if (!content) {
+          throw new Error('Groq API returned empty message content');
+        }
+
+        this.activeModel = modelToTry;
+        return content;
+      } catch (err: any) {
+        lastError = err;
+        if (!err.message?.includes('not found') && !err.message?.includes('does not exist')) {
+          throw err;
+        }
+      }
     }
 
-    const res = await fetch(this.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`Groq API returned status ${res.status}: ${errorText}`);
-    }
-
-    const data: any = await res.json();
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error('Groq API returned empty message content');
-    }
-
-    return content;
+    throw lastError || new Error('All Groq candidate models failed');
   }
 
   private cleanAndParseJson(text: string): any {

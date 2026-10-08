@@ -25,6 +25,9 @@ import CoverLetterPage from './pages/CoverLetterPage';
 import InterviewPrepPage from './pages/InterviewPrepPage';
 import AssistantPage from './pages/AssistantPage';
 import NotificationsPage from './pages/NotificationsPage';
+import ApplicationsPage from './pages/ApplicationsPage';
+import CandidateInterviewRoomPage from './pages/CandidateInterviewRoomPage';
+import InterviewerRoomPage from './pages/InterviewerRoomPage';
 
 // Consultant & Admin Pages
 import ConsultantDashboardPage from './pages/ConsultantDashboardPage';
@@ -167,6 +170,22 @@ export const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
+                <Route
+          path="/applications"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <ApplicationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/interviews/:id"
+          element={
+            <ProtectedRoute allowedRoles={['APPLICANT', 'ADMIN']}>
+              <CandidateInterviewRoomPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/interview"
           element={
@@ -206,6 +225,14 @@ export const App: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['CONSULTANT', 'ADMIN']}>
               <ConsultantDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+                <Route
+          path="/consultant/interviews/:id"
+          element={
+            <ProtectedRoute allowedRoles={['CONSULTANT', 'ADMIN']}>
+              <InterviewerRoomPage />
             </ProtectedRoute>
           }
         />

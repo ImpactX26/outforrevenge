@@ -41,7 +41,7 @@ export const InterviewPrepPage: React.FC = () => {
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string>('');
   const [opportunities, setOpportunities] = useState<OpportunityItem[]>([]);
   const [qualificationStatus, setQualificationStatus] = useState<string>('QUALIFIED');
-  const [bavarianGpa, setBavarianGpa] = useState<number | null>(1.8);
+  const [bavarianGpa, setBavarianGpa] = useState<number | null>(null);
   const [session, setSession] = useState<any | null>(null);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');

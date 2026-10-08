@@ -281,12 +281,99 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 2: Agent Telemetry */}
+      {/* Tab 2: Agent Telemetry with Multi-Agent Pipeline Visualization */}
       {activeTab === 'agents' && (
-        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', marginBottom: '1.25rem' }}>
-            Multi-Agent Execution Log Stream
-          </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Multi-Agent Orchestration Graph Visualizer */}
+          <div className="card" style={{ padding: '1.75rem', border: '1px solid rgba(59, 130, 246, 0.3)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9))' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Cpu size={20} color="#60a5fa" />
+                  Nexora Multi-Agent Execution Graph
+                </h3>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                  Executable parent/child dependency graph executing against PostgreSQL state & Groq Llama-3.3-70B
+                </div>
+              </div>
+              <span style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontWeight: 700, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                Deterministic Bounded Flow
+              </span>
+            </div>
+
+            {/* Pipeline Flowchart Visual */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {[
+                { name: 'Master Orchestrator', type: 'ORCHESTRATOR', desc: 'Observes applicant state, plans next bounded step, halts on consultant review', role: 'CORE' },
+                { name: 'Document Agent', type: 'DOCUMENT', desc: 'Parses academic transcripts, language certs via OCR & extracts structured credentials', role: 'EXTRACTION' },
+                { name: 'Consistency Agent', type: 'CONSISTENCY', desc: 'Detects cross-document discrepancies & self-reporting anomalies with consultant escalation', role: 'VERIFICATION' },
+                { name: 'Qualification Agent', type: 'QUALIFICATION', desc: 'Evaluates German statutory criteria (Anerkennungsgesetz & Anabin H+ equivalence)', role: 'EVALUATION' },
+                { name: 'Opportunity Agent', type: 'OPPORTUNITY', desc: 'Matches verified profile against German universities, paid Ausbildung, and employer openings', role: 'MATCHING' },
+                { name: 'Application Readiness Agent', type: 'APPLICATION_READINESS', desc: 'Audits selected opportunity requirements, detects missing items, calculates application readiness', role: 'READINESS' },
+                { name: 'Job Application Agent', type: 'JOB_APPLICATION', desc: 'Prepares German DIN/Europass application package; requires explicit applicant confirmation', role: 'APPLICATION' },
+                { name: 'Interview Planning Agent', type: 'INTERVIEW_PLANNING', desc: 'Designs structured interview stages (HR, Technical, Coding, Language) tailored to role & seniority', role: 'PLANNING' },
+                { name: 'Technical Assessment Agent', type: 'TECHNICAL_ASSESSMENT', desc: 'Generates role-specific sandbox coding tasks (e.g., Bosch STM32 ring buffer, TypeScript rate limiter)', role: 'TECHNICAL' },
+                { name: 'Live Interview Copilot Agent', type: 'LIVE_INTERVIEW', desc: 'Real-time assistant for interviewer: adaptive follow-ups, profile evidence, missing evidence warnings', role: 'COPILOT' },
+                { name: 'Interview Evaluation Agent', type: 'INTERVIEW_EVALUATION', desc: 'Multi-criteria post-interview scorecard: technical, coding, language, and advisory recommendation', role: 'EVALUATION' },
+                { name: 'Journey Agent', type: 'JOURNEY', desc: 'Synchronizes sequential 7-stage German relocation roadmap and next best action', role: 'JOURNEY' },
+              ].map((node, idx, arr) => {
+                const count = agentExecutions.filter(a => a.agentType === node.type).length;
+                return (
+                  <React.Fragment key={node.type}>
+                    <div
+                      style={{
+                        padding: '0.85rem 1.15rem',
+                        borderRadius: '10px',
+                        background: 'rgba(30, 41, 59, 0.6)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '1rem',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa', fontSize: '0.75rem', fontWeight: 800 }}>
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#fff' }}>{node.name}</span>
+                            <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)', color: '#94a3b8', fontFamily: 'monospace' }}>
+                              {node.type}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.15rem' }}>
+                            {node.desc}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', padding: '0.2rem 0.55rem', borderRadius: '6px', fontWeight: 600 }}>
+                          {count} Executions Logged
+                        </span>
+                        <span style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontWeight: 700 }}>
+                          ACTIVE
+                        </span>
+                      </div>
+                    </div>
+                    {idx < arr.length - 1 && (
+                      <div style={{ textAlign: 'center', color: '#60a5fa', fontSize: '0.85rem', lineHeight: '0.6', opacity: 0.7 }}>
+                        &darr;
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff', marginBottom: '1.25rem' }}>
+              Multi-Agent Execution Log Stream
+            </h3>
 
           {agentExecutions.length > 0 ? (
             <div style={{ overflowX: 'auto' }}>
@@ -363,6 +450,7 @@ export const AdminDashboardPage: React.FC = () => {
               No agent execution traces recorded yet.
             </div>
           )}
+        </div>
         </div>
       )}
 

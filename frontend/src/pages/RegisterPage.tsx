@@ -32,12 +32,10 @@ export const RegisterPage: React.FC = () => {
     setError(null);
     setSendingOtp(true);
     try {
-      const res = await sendOtp(email, 'REGISTER');
+      setOtpCode('');
+      await sendOtp(email.trim(), 'REGISTER');
       setOtpSent(true);
-      if (res?.code) {
-        setOtpCode(res.code);
-      }
-      setOtpSuccessInfo(`Verification code sent to your email (${email}). Please check your inbox.`);
+      setOtpSuccessInfo(`Verification code has been dispatched to ${email.trim()}. Please check your email inbox and enter the 6-digit code below.`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send verification code');
     } finally {

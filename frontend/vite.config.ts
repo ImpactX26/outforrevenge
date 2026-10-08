@@ -18,4 +18,17 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          monaco: ['@monaco-editor/react'],
+          icons: ['lucide-react'],
+        },
+      },
+    },
+  },
 });

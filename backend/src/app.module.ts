@@ -16,6 +16,7 @@ import { JourneyModule } from './journey/journey.module';
 import { CvModule } from './cv/cv.module';
 import { CoverLettersModule } from './cover-letters/cover-letters.module';
 import { InterviewsModule } from './interviews/interviews.module';
+import { ApplicationsModule } from './applications/applications.module';
 import { OrchestratorModule } from './agents/orchestrator/orchestrator.module';
 import { ConsultantModule } from './consultant/consultant.module';
 import { AdminModule } from './admin/admin.module';
@@ -46,6 +47,7 @@ import { MailModule } from './mail/mail.module';
     CvModule,
     CoverLettersModule,
     InterviewsModule,
+    ApplicationsModule,
     OrchestratorModule,
     ConsultantModule,
     AdminModule,

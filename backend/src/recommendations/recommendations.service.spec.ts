@@ -44,15 +44,7 @@ describe('RecommendationsService (Educaro Next-Step Routing)', () => {
       }),
     };
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        RecommendationsService,
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: AiService, useValue: mockAiService },
-      ],
-    }).compile();
-
-    service = module.get<RecommendationsService>(RecommendationsService);
+    service = new RecommendationsService(mockPrisma as any, mockAiService as any);
   });
 
   it('CRITICAL: must route to Educaro Language Academy when German requirement is missing', async () => {

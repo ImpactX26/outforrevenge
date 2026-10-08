@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import {
   Compass,
@@ -17,13 +18,18 @@ import {
   AlertTriangle,
   Send,
   SlidersHorizontal,
+  Video,
+  Code2,
+  ExternalLink,
 } from 'lucide-react';
 
 export const ConsultantDashboardPage: React.FC = () => {
   const [reviews, setReviews] = useState<any[]>([]);
   const [applicants, setApplicants] = useState<any[]>([]);
+  const [interviews, setInterviews] = useState<any[]>([]);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'reviews' | 'applicants'>('reviews');
+  const [activeTab, setActiveTab] = useState<'reviews' | 'applicants' | 'interviews'>('reviews');
   const [selectedReview, setSelectedReview] = useState<any | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -32,9 +38,10 @@ export const ConsultantDashboardPage: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [reviewsRes, applicantsRes] = await Promise.allSettled([
+      const [reviewsRes, applicantsRes, intRes] = await Promise.allSettled([
         apiClient.get('/consultant/reviews'),
         apiClient.get('/consultant/applicants'),
+        apiClient.get('/interviews'),
       ]);
 
       if (reviewsRes.status === 'fulfilled' && reviewsRes.value.data.success) {
@@ -42,6 +49,9 @@ export const ConsultantDashboardPage: React.FC = () => {
       }
       if (applicantsRes.status === 'fulfilled' && applicantsRes.value.data.success) {
         setApplicants(applicantsRes.value.data.applicants || []);
+      }
+      if (intRes.status === 'fulfilled' && intRes.value.data.success) {
+        setInterviews(intRes.value.data.interviews || []);
       }
     } catch (err) {
       console.error('Failed to load consultant data:', err);
@@ -250,6 +260,25 @@ export const ConsultantDashboardPage: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('interviews')}
+          className="btn"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.6rem 1.15rem',
+            borderRadius: '8px',
+            fontSize: '0.85rem',
+            fontWeight: activeTab === 'interviews' ? 700 : 500,
+            background: activeTab === 'interviews' ? 'rgba(99, 102, 241, 0.25)' : 'rgba(15, 23, 42, 0.6)',
+            border: activeTab === 'interviews' ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
+            color: activeTab === 'interviews' ? '#818cf8' : '#94a3b8',
+          }}
+        >
+          <Video size={16} />
+          <span>Candidate Interviews ({interviews.length})</span>
+        </button>
+        <button
           onClick={() => setActiveTab('applicants')}
           style={{
             padding: '0.65rem 1.15rem',
@@ -356,6 +385,78 @@ export const ConsultantDashboardPage: React.FC = () => {
               <ShieldCheck size={38} color="#10b981" style={{ margin: '0 auto 0.75rem' }} />
               <div style={{ fontSize: '1rem', fontWeight: 700, color: '#fff' }}>Queue Clear</div>
               <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>No pending items requiring consultant review. All dossiers verified.</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: Candidate Interviews */}
+      {activeTab === 'interviews' && (
+        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+                Candidate Technical & Pathway Interviews
+              </h3>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                Join live WebRTC interview rooms, monitor collaborative Monaco coding, and submit scorecards
+              </div>
+            </div>
+          </div>
+
+          {interviews.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1rem' }}>
+              {interviews.map((intItem) => (
+                <div
+                  key={intItem.id}
+                  style={{
+                    padding: '1.25rem',
+                    borderRadius: '10px',
+                    background: 'rgba(30, 41, 59, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                        {intItem.title}
+                      </h4>
+                      <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', fontWeight: 600 }}>
+                        {intItem.status}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: '0.82rem', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <div>Candidate: <strong>{intItem.applicant?.firstName} {intItem.applicant?.lastName}</strong> ({intItem.applicant?.email})</div>
+                      <div>Target: {intItem.application?.opportunity?.title || 'German Program'}</div>
+                      <div>Scheduled: {new Date(intItem.scheduledAt).toLocaleString()} ({intItem.durationMinutes} mins)</div>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                      Scorecard: {intItem.scorecard ? 'Completed' : 'Pending'}
+                    </span>
+
+                    <button
+                      onClick={() => navigate(`/consultant/interviews/${intItem.id}`)}
+                      className="btn btn-primary"
+                      style={{ fontSize: '0.8rem', padding: '0.45rem 0.95rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      <Video size={14} />
+                      <span>Launch Interviewer Console &rarr;</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+              No interviews scheduled yet.
             </div>
           )}
         </div>

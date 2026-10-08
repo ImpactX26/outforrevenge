@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import {
   Briefcase,
+  AlertCircle,
   Building2,
   MapPin,
   CheckCircle2,
@@ -32,6 +33,9 @@ export const OpportunitiesPage: React.FC = () => {
   const [selectedMatch, setSelectedMatch] = useState<OpportunityMatch | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isQualified, setIsQualified] = useState(false);
+  const [applyingOppId, setApplyingOppId] = useState<string | null>(null);
+  const [missingModal, setMissingModal] = useState<{ oppTitle: string; items: string[] } | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const f = searchParams.get('filter');
@@ -68,6 +72,34 @@ export const OpportunitiesPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+    const handleApplyNow = async (opp: OpportunityItem) => {
+    if (!isQualified) {
+      alert('Statutory Qualification is required prior to submitting an official application. Please complete qualification first.');
+      navigate('/qualification');
+      return;
+    }
+
+    try {
+      setApplyingOppId(opp.id);
+      const res = await apiClient.post('/applications/prepare', { opportunityId: opp.id });
+      if (res.data.success) {
+        const pkg = res.data.package;
+        if (pkg.readinessScore < 75 || pkg.missingRequirements?.length > 0) {
+          setMissingModal({
+            oppTitle: opp.title,
+            items: pkg.missingRequirements || ['Language certificate or German-standard CV missing'],
+          });
+        } else {
+          navigate('/applications');
+        }
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Complete qualification requirements before applying.');
+    } finally {
+      setApplyingOppId(null);
+    }
+  };
 
   const handleRefreshMatches = async () => {
     try {
@@ -483,14 +515,26 @@ export const OpportunitiesPage: React.FC = () => {
                         <span>Interview Locked</span>
                       </Link>
                     )}
-                    <button
-                      onClick={() => alert(`Connecting with Educaro advisor for application to: ${opp.title} (${opp.organization})`)}
-                      className="btn btn-secondary"
-                      style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                    >
-                      <span>Apply</span>
-                      <ChevronRight size={14} />
-                    </button>
+                    {isQualified ? (
+                      <button
+                        onClick={() => handleApplyNow(opp)}
+                        disabled={applyingOppId === opp.id}
+                        className="btn btn-primary"
+                        style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        {applyingOppId === opp.id ? <RefreshCw className="animate-spin" size={13} /> : null}
+                        <span>Apply Now</span>
+                        <ChevronRight size={14} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => navigate('/qualification')}
+                        className="btn"
+                        style={{ fontSize: '0.74rem', padding: '0.4rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#fbbf24' }}
+                      >
+                        Complete these requirements first
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -509,6 +553,33 @@ export const OpportunitiesPage: React.FC = () => {
           <button onClick={() => { setActiveFilter('ALL'); setSearchQuery(''); }} className="btn btn-secondary">
             Reset Filters
           </button>
+        </div>
+      )}
+      {/* Requirements Modal */}
+      {missingModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '1rem' }}>
+          <div className="card" style={{ maxWidth: '480px', width: '100%', padding: '1.75rem', background: '#0f172a', border: '1px solid rgba(245, 158, 11, 0.35)', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fbbf24', fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>
+              <AlertCircle size={20} />
+              <span>Complete These Requirements First</span>
+            </div>
+            <p style={{ color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+              The Application Readiness Agent detected missing statutory credentials for <strong>{missingModal.oppTitle}</strong>:
+            </p>
+            <ul style={{ paddingLeft: '1.25rem', color: '#f87171', fontSize: '0.82rem', marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              {missingModal.items.map((it, idx) => (
+                <li key={idx}>{it}</li>
+              ))}
+            </ul>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button onClick={() => setMissingModal(null)} className="btn" style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1' }}>
+                Close
+              </button>
+              <button onClick={() => { setMissingModal(null); navigate('/documents'); }} className="btn btn-primary" style={{ fontSize: '0.8rem' }}>
+                Upload Missing Credentials &rarr;
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

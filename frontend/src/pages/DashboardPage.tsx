@@ -161,8 +161,8 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  const completeness = profile?.profileCompleteness || 35;
-  const readiness = profile?.readinessScore || assessment?.score || 40;
+  const completeness = profile?.profileCompleteness ? profile.profileCompleteness : (profile ? (Boolean(profile.phone || profile.location) ? 20 : 0) + (Boolean(profile.educations?.length) ? 20 : 0) + (Boolean(profile.skills?.length) ? 20 : 0) + (Boolean(profile.languages?.length) ? 20 : 0) : 0);
+  const readiness = assessment ? assessment.score : null;
   const currentGoal = profile?.currentGoal || 'AUSBILDUNG';
 
   const goalTitle =
@@ -230,6 +230,21 @@ export const DashboardPage: React.FC = () => {
         {/* Problem-Statement Focused Navigation CTAs */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button
+            onClick={() => navigate('/applications')}
+            className="btn btn-primary"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.65rem 1.25rem',
+              fontSize: '0.88rem',
+              boxShadow: '0 4px 15px rgba(37, 99, 235, 0.35)',
+            }}
+          >
+            <Briefcase size={17} />
+            <span>My Applications</span>
+          </button>
+          <button
             onClick={() => navigate('/assistant')}
             className="btn btn-primary"
             style={{
@@ -282,7 +297,7 @@ export const DashboardPage: React.FC = () => {
                 Germany Readiness
               </div>
               <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' }}>
-                {readiness} <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 500 }}>/ 100</span>
+                {assessment ? <>{assessment.score} <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 500 }}>/ 100</span></> : <>? <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 500 }}>/ 100</span></>}
               </div>
             </div>
             <div
@@ -304,8 +319,8 @@ export const DashboardPage: React.FC = () => {
             <div
               className="progress-bar-fill"
               style={{
-                width: `${readiness}%`,
-                background: readiness >= 70 ? '#10b981' : readiness >= 45 ? '#f59e0b' : '#3b82f6',
+                width: assessment ? (assessment.score + '%') : '0%',
+                background: assessment && assessment.score >= 70 ? '#10b981' : '#f59e0b',
               }}
             />
           </div>
@@ -374,7 +389,7 @@ export const DashboardPage: React.FC = () => {
                 German Language Level
               </div>
               <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff', marginTop: '0.35rem' }}>
-                {profile?.germanLevel || 'A1 Refresher'}
+                {profile?.germanLevel || 'Not provided'}
               </div>
             </div>
             <div
@@ -418,7 +433,7 @@ export const DashboardPage: React.FC = () => {
                 Anabin & APS Recognition
               </div>
               <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff', marginTop: '0.35rem' }}>
-                {profile?.anabinStatus || 'H+ University'}
+                {profile?.anabinStatus || 'Pending Verification'}
               </div>
             </div>
             <div
@@ -437,7 +452,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginBottom: '0.4rem' }}>
-            Bavarian GPA: <strong style={{ color: '#fff' }}>{profile?.bavarianGpa ? `${profile.bavarianGpa} (German Scale)` : '1.8 (Good)'}</strong>
+            Bavarian GPA: <strong style={{ color: '#fff' }}>{profile?.bavarianGpa ? (profile.bavarianGpa + ' (German Scale)') : 'Not evaluated'}</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Equivalence:</span>

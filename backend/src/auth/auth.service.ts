@@ -1,6 +1,7 @@
 import {
   Injectable,
   ConflictException,
+  InternalServerErrorException,
   UnauthorizedException,
   NotFoundException,
   BadRequestException,
@@ -26,7 +27,7 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
+      where: { email: dto.email.toLowerCase().trim() },
     });
     if (existing) {
       throw new ConflictException('An account with this email address already exists');
@@ -38,7 +39,7 @@ export class AuthService {
     const savedUser = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          email: dto.email.toLowerCase(),
+          email: dto.email.toLowerCase().trim(),
           passwordHash: hashedPassword,
           firstName: dto.firstName,
           lastName: dto.lastName,
@@ -261,14 +262,18 @@ export class AuthService {
     this.logger.log(`[Nexora Auth] Generated ${purpose} OTP for ${cleanEmail}: ${code}`);
 
     // Dispatch real email via Gmail SMTP
-    await this.mailService.sendOtpEmail(cleanEmail, code, purpose);
+    const sent = await this.mailService.sendOtpEmail(cleanEmail, code, purpose);
+    if (!sent) {
+      this.logger.error(`Failed to dispatch OTP email to ${cleanEmail}`);
+      throw new InternalServerErrorException(
+        'Failed to deliver verification code to your email. Please check your email address and try again.'
+      );
+    }
 
     return {
       success: true,
-      message: `Verification code sent to ${cleanEmail}`,
+      message: `Verification code sent to ${cleanEmail}. Please check your email inbox.`,
       email: cleanEmail,
-      // Provide OTP in dev for frictionless testing
-      code: process.env.NODE_ENV !== 'production' ? code : undefined,
     };
   }
 

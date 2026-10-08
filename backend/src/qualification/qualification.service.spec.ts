@@ -34,15 +34,7 @@ describe('QualificationService (Deterministic Rule Engine & Evidence)', () => {
       }),
     };
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        QualificationService,
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: AiService, useValue: mockAiService },
-      ],
-    }).compile();
-
-    service = module.get<QualificationService>(QualificationService);
+    service = new QualificationService(mockPrisma as any, mockAiService as any);
   });
 
   describe('Rule: German Language (GERMAN_B1 / GERMAN_B2)', () => {

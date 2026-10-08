@@ -11,14 +11,19 @@ export interface LoginMetadata {
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private transporter: nodemailer.Transporter | null = null;
-  private readonly fromAddress: string;
+  private fromAddress: string = '"Nexora" <no-reply@nexora.de>';
 
   constructor() {
+    this.initTransporter();
+  }
+
+  private initTransporter(): nodemailer.Transporter | null {
+    if (this.transporter) return this.transporter;
+
     const host = process.env.MAIL_HOST || 'smtp.gmail.com';
     const port = parseInt(process.env.MAIL_PORT || '465', 10);
     const user = process.env.MAIL_USER || '';
     const rawPass = process.env.MAIL_PASSWORD || '';
-    // Strip spaces commonly present in Google App Passwords
     const pass = rawPass.replace(/\s+/g, '');
 
     this.fromAddress = process.env.MAIL_FROM || `"Nexora" <${user || 'no-reply@nexora.de'}>`;
@@ -42,14 +47,16 @@ export class MailService {
 
       this.transporter.verify((err) => {
         if (err) {
-          this.logger.warn(`Mail transporter connection verification failed: ${err.message}`);
+          this.logger.warn(`Mail transporter verification failed: ${err.message}`);
         } else {
-          this.logger.log(`✓ Mail service ready. Connected via ${isGmail ? 'Gmail Service' : host} (${user})`);
+          this.logger.log(`? Mail service ready. Connected via ${isGmail ? 'Gmail Service' : host} (${user})`);
         }
       });
     } else {
       this.logger.warn('Mail credentials not provided. Outgoing emails will only be logged.');
     }
+
+    return this.transporter;
   }
 
   /**
@@ -58,24 +65,24 @@ export class MailService {
   async sendOtpEmail(email: string, code: string, purpose: 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD'): Promise<boolean> {
     const purposeTitles: Record<string, { subject: string; heading: string; desc: string }> = {
       LOGIN: {
-        subject: 'Nexora — Your Login Verification Code',
+        subject: 'Nexora ? Your Login Verification Code',
         heading: 'Sign In Verification Code',
         desc: 'Use the following 6-digit one-time code to securely sign in to your Nexora account.',
       },
       REGISTER: {
-        subject: 'Nexora — Verify Your Email Address',
-        heading: 'Welcome to Nexora — Confirm Your Email',
+        subject: 'Nexora ? Verify Your Email Address',
+        heading: 'Welcome to Nexora ? Confirm Your Email',
         desc: 'Thank you for starting your Germany journey with Nexora. Use this code to verify your email address.',
       },
       FORGOT_PASSWORD: {
-        subject: 'Nexora — Password Reset Verification Code',
+        subject: 'Nexora ? Password Reset Verification Code',
         heading: 'Password Recovery Code',
         desc: 'We received a request to reset your Nexora account password. Use this code to choose a new password.',
       },
     };
 
     const info = purposeTitles[purpose] || {
-      subject: 'Nexora — Your One-Time Password',
+      subject: 'Nexora ? Your One-Time Password',
       heading: 'Verification Code',
       desc: 'Use the 6-digit code below to proceed with your Nexora verification.',
     };
@@ -93,7 +100,7 @@ export class MailService {
           <div style="text-align: center; margin: 28px 0; padding: 20px; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px;">
             <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #38bdf8; margin-bottom: 8px;">Your 6-Digit Code</div>
             <div style="font-size: 36px; font-weight: 800; letter-spacing: 0.25em; color: #ffffff; font-family: 'Courier New', monospace;">${code}</div>
-            <div style="font-size: 12px; color: #64748b; margin-top: 8px;">Valid for 10 minutes • Do not share with anyone</div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 8px;">Valid for 10 minutes ? Do not share with anyone</div>
           </div>
 
           <p style="margin: 20px 0 0 0; color: #64748b; font-size: 13px; line-height: 1.5;">
@@ -114,7 +121,7 @@ export class MailService {
    */
   async sendRegistrationSuccessEmail(email: string, firstName: string): Promise<boolean> {
     const greeting = firstName ? `Hello ${firstName},` : 'Hello,';
-    const subject = 'Welcome to Nexora — Your Journey to Germany Begins!';
+    const subject = 'Welcome to Nexora ? Your Journey to Germany Begins!';
 
     const html = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; background-color: #0b1120; color: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid #1e293b;">
@@ -159,7 +166,7 @@ export class MailService {
    */
   async sendLoginSuccessEmail(email: string, firstName: string, meta?: LoginMetadata): Promise<boolean> {
     const greeting = firstName ? `Hello ${firstName},` : 'Hello,';
-    const subject = 'Nexora — Successful Login to Your Account';
+    const subject = 'Nexora ? Successful Login to Your Account';
     const timestampStr = (meta?.timestamp || new Date()).toUTCString();
     const deviceStr = meta?.userAgent || 'Web Browser';
     const ipStr = meta?.ip || 'Direct Connection';
@@ -201,7 +208,7 @@ export class MailService {
    */
   async sendPasswordResetSuccessEmail(email: string, firstName: string): Promise<boolean> {
     const greeting = firstName ? `Hello ${firstName},` : 'Hello,';
-    const subject = 'Nexora — Your Password Has Been Changed';
+    const subject = 'Nexora ? Your Password Has Been Changed';
     const timestampStr = new Date().toUTCString();
 
     const html = `
@@ -235,13 +242,14 @@ export class MailService {
   }
 
   private async sendMail(to: string, subject: string, html: string, text: string): Promise<boolean> {
-    if (!this.transporter) {
-      this.logger.log(`[Mail Simulation] Would send email to: ${to} | Subject: "${subject}"`);
-      return true;
+    const transporter = this.initTransporter();
+    if (!transporter) {
+      this.logger.warn(`[Mail Simulation] Outgoing email to ${to} skipped because mail transporter is not initialized.`);
+      return false;
     }
 
     try {
-      const info = await this.transporter.sendMail({
+      const info = await transporter.sendMail({
         from: this.fromAddress,
         to,
         subject,
@@ -249,7 +257,7 @@ export class MailService {
         text,
       });
 
-      this.logger.log(`✓ Email sent to ${to} [${subject}]: messageId=${info.messageId}`);
+      this.logger.log(`? Email delivered to ${to} [${subject}]: messageId=${info.messageId}`);
       return true;
     } catch (err: any) {
       this.logger.error(`Failed to send email to ${to}: ${err.message}`, err.stack);

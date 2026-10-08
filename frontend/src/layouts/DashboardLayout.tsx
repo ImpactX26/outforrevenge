@@ -41,6 +41,7 @@ export const DashboardLayout: React.FC = () => {
     { name: 'Video Intro', path: '/video', icon: Eye },
     { name: 'Qualification', path: '/qualification', icon: Award },
     { name: 'Opportunities', path: '/opportunities', icon: Briefcase },
+    { name: 'My Applications', path: '/applications', icon: Briefcase },
     { name: 'Next Step', path: '/next-step', icon: ArrowRightCircle },
     { name: 'My Journey', path: '/journey', icon: Map },
     { name: 'CV Builder', path: '/cv', icon: FileCheck2 },

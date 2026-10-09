@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 
@@ -235,6 +236,27 @@ export class MailService {
   }
 
   private async sendMail(to: string, subject: string, html: string, text: string): Promise<boolean> {
+    // 1. Priority: Try Vercel HTTPS Mail Relay (port 443 HTTPS - never blocked by cloud firewall)
+    try {
+      const vercelUrl = process.env.FRONTEND_URL || 'https://rnsit-impactx-9ngk.vercel.app';
+      const cleanUrl = vercelUrl.replace(/\/$/, '');
+      const relayUrl = `${cleanUrl}/api/send-email`;
+
+      const response = await axios.post(
+        relayUrl,
+        { to, subject, html, text },
+        { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
+      );
+
+      if (response.data && response.data.success) {
+        this.logger.log(`✓ Email delivered to ${to} [${subject}] via Vercel HTTPS Relay: messageId=${response.data.messageId}`);
+        return true;
+      }
+    } catch (relayErr: any) {
+      this.logger.warn(`Vercel HTTPS mail relay failed: ${relayErr.message}. Attempting direct SMTP.`);
+    }
+
+    // 2. Direct SMTP fallback (works locally and on paid cloud)
     const transporter = this.initTransporter();
     if (!transporter) {
       this.logger.warn(`[Mail Simulation] Outgoing email to ${to} skipped because mail transporter is not initialized.`);
@@ -251,14 +273,14 @@ export class MailService {
       });
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('SMTP timeout - host firewall dropped connection')), 25000),
+        setTimeout(() => reject(new Error('SMTP timeout - host firewall dropped connection')), 15000),
       );
 
       const info: any = await Promise.race([sendPromise, timeoutPromise]);
-      this.logger.log(`? Email delivered to ${to} [${subject}]: messageId=${info?.messageId}`);
+      this.logger.log(`✓ Email delivered to ${to} [${subject}]: messageId=${info?.messageId}`);
       return true;
     } catch (err: any) {
-      this.logger.warn(`Failed to send email to ${to}: ${err.message}`);
+      this.logger.warn(`Failed direct SMTP to ${to}: ${err.message}`);
       return false;
     }
   }

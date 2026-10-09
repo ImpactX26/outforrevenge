@@ -252,7 +252,7 @@ export class AuthService {
 
   private readonly otpStore = new Map<string, { code: string; expiresAt: Date; purpose: string }>();
 
-  async sendOtp(email: string, purpose: 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD' = 'LOGIN') {
+    async sendOtp(email: string, purpose: 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD' = 'LOGIN') {
     const cleanEmail = email.toLowerCase().trim();
     // Generate secure 6-digit OTP code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -261,28 +261,20 @@ export class AuthService {
     this.otpStore.set(`${cleanEmail}_${purpose}`, { code, expiresAt, purpose });
     this.logger.log(`[Nexora Auth] Generated ${purpose} OTP for ${cleanEmail}: ${code}`);
 
-    // Try dispatching real email via Gmail SMTP
-    let sent = false;
-    try {
-      sent = await this.mailService.sendOtpEmail(cleanEmail, code, purpose);
-    } catch (err: any) {
-      this.logger.warn(`Failed to dispatch OTP email: ${err.message}`);
+    // Dispatch real email to user's inbox
+    const sent = await this.mailService.sendOtpEmail(cleanEmail, code, purpose);
+    if (!sent) {
+      this.logger.error(`Failed to dispatch OTP email to ${cleanEmail}`);
+      throw new InternalServerErrorException(
+        'Failed to deliver verification code to your email. Please check your email address and try again.'
+      );
     }
 
-    if (sent) {
-      return {
-        success: true,
-        message: `Verification code has been sent to ${cleanEmail}. Please check your inbox and spam folder.`,
-        email: cleanEmail,
-      };
-    } else {
-      this.logger.warn(`[Nexora Auth] Mail delivery delayed/blocked on host. Active OTP for ${cleanEmail} is ${code}`);
-      return {
-        success: true,
-        message: `Verification code: ${code} (Email delivery delayed — you can enter ${code} to sign in directly)`,
-        email: cleanEmail,
-      };
-    }
+    return {
+      success: true,
+      message: `Verification code sent to ${cleanEmail}. Please check your email inbox.`,
+      email: cleanEmail,
+    };
   }
 
   async verifyOtpLogin(email: string, code: string, meta?: LoginMetadata) {

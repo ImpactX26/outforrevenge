@@ -1,7 +1,18 @@
 import axios from 'axios';
 
+const getApiBaseUrl = () => {
+  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    const trimmed = envUrl.trim();
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed.replace(/\/$/, '')}/api`;
+  }
+  return '/api';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
+
 export const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -35,7 +46,7 @@ apiClient.interceptors.response.use(
       const refreshToken = localStorage.getItem('nexora_refresh_token');
       if (refreshToken) {
         try {
-          const res = await axios.post('/api/auth/refresh', { refreshToken });
+          const res = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
           if (res.data.success && res.data.accessToken) {
             localStorage.setItem('nexora_token', res.data.accessToken);
             localStorage.setItem('nexora_refresh_token', res.data.refreshToken);

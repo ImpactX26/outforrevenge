@@ -35,6 +35,9 @@ export class MailService {
         this.transporter = nodemailer.createTransport({
           service: 'gmail',
           auth: { user, pass },
+          connectionTimeout: 4000,
+          greetingTimeout: 4000,
+          socketTimeout: 4000,
         });
       } else {
         this.transporter = nodemailer.createTransport({
@@ -42,6 +45,9 @@ export class MailService {
           port,
           secure: port === 465 || process.env.MAIL_SECURE === 'true',
           auth: { user, pass },
+          connectionTimeout: 4000,
+          greetingTimeout: 4000,
+          socketTimeout: 4000,
         });
       }
 
@@ -249,7 +255,7 @@ export class MailService {
     }
 
     try {
-      const info = await transporter.sendMail({
+      const sendPromise = transporter.sendMail({
         from: this.fromAddress,
         to,
         subject,
@@ -257,10 +263,15 @@ export class MailService {
         text,
       });
 
-      this.logger.log(`? Email delivered to ${to} [${subject}]: messageId=${info.messageId}`);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SMTP timeout - host firewall dropped connection')), 4500),
+      );
+
+      const info: any = await Promise.race([sendPromise, timeoutPromise]);
+      this.logger.log(`? Email delivered to ${to} [${subject}]: messageId=${info?.messageId}`);
       return true;
     } catch (err: any) {
-      this.logger.error(`Failed to send email to ${to}: ${err.message}`, err.stack);
+      this.logger.warn(`Failed to send email to ${to}: ${err.message}`);
       return false;
     }
   }

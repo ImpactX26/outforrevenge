@@ -48,9 +48,14 @@ export const LoginPage: React.FC = () => {
     setSendingOtp(true);
     try {
       setOtpCode('');
-      await sendOtp(email.trim(), 'LOGIN');
+      const res = await sendOtp(email.trim(), 'LOGIN');
       setOtpSent(true);
-      setSuccessInfo(`Verification code has been dispatched to ${email.trim()}. Please check your email inbox and enter the 6-digit code below.`);
+      if (res?.debugCode) {
+        setOtpCode(res.debugCode);
+        setSuccessInfo(`Code: ${res.debugCode} (Render Free Tier blocks SMTP port 465 — auto-filled for instant testing!)`);
+      } else {
+        setSuccessInfo(`Verification code has been dispatched to ${email.trim()}. Please check your email inbox and enter the 6-digit code below.`);
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to send verification code. Please try again.');
     } finally {

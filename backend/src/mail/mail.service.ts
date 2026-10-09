@@ -251,7 +251,7 @@ export class MailService {
       });
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('SMTP timeout - host firewall dropped connection')), 3000),
+        setTimeout(() => reject(new Error('SMTP timeout - host firewall dropped connection')), 25000),
       );
 
       const info: any = await Promise.race([sendPromise, timeoutPromise]);

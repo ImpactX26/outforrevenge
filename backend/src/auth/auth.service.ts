@@ -272,14 +272,14 @@ export class AuthService {
     if (sent) {
       return {
         success: true,
-        message: `Verification code sent to ${cleanEmail}. Please check your email inbox.`,
+        message: `Verification code has been sent to ${cleanEmail}. Please check your inbox and spam folder.`,
         email: cleanEmail,
       };
     } else {
-      this.logger.warn(`[Nexora Auth] Cloud host blocked SMTP. Active OTP for ${cleanEmail} is ${code}`);
+      this.logger.warn(`[Nexora Auth] Mail delivery delayed/blocked on host. Active OTP for ${cleanEmail} is ${code}`);
       return {
         success: true,
-        message: `Verification code: ${code} (Render free tier blocks SMTP — enter ${code} below to proceed)`,
+        message: `Verification code: ${code} (Email delivery delayed — you can enter ${code} to sign in directly)`,
         email: cleanEmail,
       };
     }

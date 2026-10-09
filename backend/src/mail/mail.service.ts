@@ -21,41 +21,28 @@ export class MailService {
     if (this.transporter) return this.transporter;
 
     const host = process.env.MAIL_HOST || 'smtp.gmail.com';
-    const port = parseInt(process.env.MAIL_PORT || '465', 10);
-    const user = process.env.MAIL_USER || '';
-    const rawPass = process.env.MAIL_PASSWORD || '';
+    const user = process.env.MAIL_USER || 'nexora.hackathon699@gmail.com';
+    const rawPass = process.env.MAIL_PASSWORD || 'dcge edfm qxay pbil';
     const pass = rawPass.replace(/\s+/g, '');
 
-    this.fromAddress = process.env.MAIL_FROM || `"Nexora" <${user || 'no-reply@nexora.de'}>`;
+    this.fromAddress = process.env.MAIL_FROM || `"Nexora" <${user}>`;
 
     if (user && pass) {
-      const isGmail = user.toLowerCase().includes('@gmail.com') || host.includes('gmail');
-
-      if (isGmail) {
-        this.transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: { user, pass },
-          connectionTimeout: 4000,
-          greetingTimeout: 4000,
-          socketTimeout: 4000,
-        });
-      } else {
-        this.transporter = nodemailer.createTransport({
-          host,
-          port,
-          secure: port === 465 || process.env.MAIL_SECURE === 'true',
-          auth: { user, pass },
-          connectionTimeout: 4000,
-          greetingTimeout: 4000,
-          socketTimeout: 4000,
-        });
-      }
+      this.transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: { user, pass },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
 
       this.transporter.verify((err) => {
         if (err) {
           this.logger.warn(`Mail transporter verification failed: ${err.message}`);
         } else {
-          this.logger.log(`? Mail service ready. Connected via ${isGmail ? 'Gmail Service' : host} (${user})`);
+          this.logger.log(`✓ Mail service ready. Connected via Gmail (${user})`);
         }
       });
     } else {

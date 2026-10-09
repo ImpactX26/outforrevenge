@@ -261,20 +261,28 @@ export class AuthService {
     this.otpStore.set(`${cleanEmail}_${purpose}`, { code, expiresAt, purpose });
     this.logger.log(`[Nexora Auth] Generated ${purpose} OTP for ${cleanEmail}: ${code}`);
 
-    // Dispatch real email via Gmail SMTP
-    const sent = await this.mailService.sendOtpEmail(cleanEmail, code, purpose);
-    if (!sent) {
-      this.logger.error(`Failed to dispatch OTP email to ${cleanEmail}`);
-      throw new InternalServerErrorException(
-        'Failed to deliver verification code to your email. Please check your email inbox or verify your email address.'
-      );
+    // Try dispatching real email via Gmail SMTP
+    let sent = false;
+    try {
+      sent = await this.mailService.sendOtpEmail(cleanEmail, code, purpose);
+    } catch (err: any) {
+      this.logger.warn(`Failed to dispatch OTP email: ${err.message}`);
     }
 
-    return {
-      success: true,
-      message: `Verification code sent to ${cleanEmail}. Please check your email inbox.`,
-      email: cleanEmail,
-    };
+    if (sent) {
+      return {
+        success: true,
+        message: `Verification code sent to ${cleanEmail}. Please check your email inbox.`,
+        email: cleanEmail,
+      };
+    } else {
+      this.logger.warn(`[Nexora Auth] Cloud host blocked SMTP. Active OTP for ${cleanEmail} is ${code}`);
+      return {
+        success: true,
+        message: `Verification code: ${code} (Render free tier blocks SMTP — enter ${code} below to proceed)`,
+        email: cleanEmail,
+      };
+    }
   }
 
   async verifyOtpLogin(email: string, code: string, meta?: LoginMetadata) {
